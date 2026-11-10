@@ -51,7 +51,7 @@ flowchart TB
 | Shadow time-to-detect | First runtime evidence → shadow alert | Under 24 hours |
 | Owner coverage | Deployments with an active named owner | 100% of production |
 | Gateway coverage | Agents whose model and tool traffic flows through the AI gateway | 100% of production |
-| Telemetry coverage | Agents emitting spans with a valid `gen_ai.agent.id` | 100% of agents in regulated flows |
+| Telemetry coverage | Agents emitting spans with a valid agent key (resource attribute or `gen_ai.agent.id`) that matches their attested identity | 100% of agents in regulated flows |
 | Dormant with live credentials | Dormant agents whose identity or keys are still active | Zero |
 | Drift reviews overdue | Model, tool or data changes without a completed re-review | Zero older than 14 days |
 

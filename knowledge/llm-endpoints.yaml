@@ -1,0 +1,64 @@
+# LLM provider endpoints and self-hosted model-server fingerprints.
+# Used for egress/DNS detection (docs/04) and network scans.
+# Keep current: new providers appear often. Wildcards use DNS-style "*.".
+
+version: 1
+last_reviewed: 2026-11-10
+
+providers:
+  - {provider: OpenAI, domains: [api.openai.com], kind: api}
+  - {provider: OpenAI consumer, domains: [chatgpt.com, chat.openai.com], kind: consumer}
+  - {provider: Anthropic, domains: [api.anthropic.com], kind: api}
+  - {provider: Anthropic consumer, domains: [claude.ai], kind: consumer}
+  - {provider: Google Gemini API, domains: [generativelanguage.googleapis.com], kind: api}
+  - {provider: Google Vertex / Agent Platform, domains: ["*-aiplatform.googleapis.com", aiplatform.googleapis.com], kind: cloud}
+  - {provider: Google consumer, domains: [gemini.google.com], kind: consumer}
+  - {provider: Azure OpenAI / Foundry, domains: ["*.openai.azure.com", "*.services.ai.azure.com", "*.cognitiveservices.azure.com"], kind: cloud}
+  - {provider: AWS Bedrock, domains: ["bedrock-runtime.*.amazonaws.com", "bedrock-agent-runtime.*.amazonaws.com", "bedrock-agentcore.*.amazonaws.com"], kind: cloud}
+  - {provider: Oracle OCI Generative AI, domains: ["inference.generativeai.*.oci.oraclecloud.com", "agent-runtime.generativeai.*.oci.oraclecloud.com"], kind: cloud, note: verify hostnames per region}
+  - {provider: IBM watsonx, domains: ["*.ml.cloud.ibm.com"], kind: cloud}
+  - {provider: Mistral, domains: [api.mistral.ai], kind: api}
+  - {provider: Cohere, domains: [api.cohere.com, api.cohere.ai], kind: api}
+  - {provider: Groq, domains: [api.groq.com], kind: api}
+  - {provider: Together, domains: [api.together.xyz], kind: api}
+  - {provider: Fireworks, domains: [api.fireworks.ai], kind: api}
+  - {provider: DeepSeek, domains: [api.deepseek.com], kind: api}
+  - {provider: xAI, domains: [api.x.ai], kind: api}
+  - {provider: Perplexity, domains: [api.perplexity.ai], kind: api}
+  - {provider: OpenRouter, domains: [openrouter.ai], kind: aggregator}
+  - {provider: Hugging Face inference, domains: [router.huggingface.co, api-inference.huggingface.co], kind: api}
+  - {provider: Replicate, domains: [api.replicate.com], kind: api}
+  - {provider: Sarvam AI, domains: [api.sarvam.ai], kind: api, note: Indian provider}
+  - {provider: Krutrim, domains: [cloud.olakrutrim.com], kind: api, note: Indian provider; verify API hostname}
+
+detection_notes:
+  - Private endpoints (PrivateLink, Private Service Connect, Azure Private Endpoint) resolve provider names to private IPs; use cloud audit logs instead of DNS (scenario SC-F01).
+  - OpenAI-compatible request shapes (POST /v1/chat/completions, /v1/responses, /v1/messages) identify unknown providers at a TLS-inspecting proxy (SC-F02).
+  - Consumer domains indicate shadow AI usage, not bank agents, unless an agent mode acts on bank systems (SC-A13, SC-A09).
+
+# Self-hosted model servers and AI front ends.
+# Ports and probes summarised from Praetorian's Julius release notes (Feb 2026).
+# Shared default ports (8000, 8080, 3000) need response signatures to disambiguate.
+model_servers:
+  - {name: Ollama, port: 11434, probe: GET /api/tags, signature: JSON model list; banner "Ollama is running"}
+  - {name: vLLM, port: 8000, probe: GET /v1/models, signature: "Server uvicorn header; /version endpoint"}
+  - {name: NVIDIA NIM, port: 8000, probe: GET /v1/metadata, signature: modelInfo field; /v1/health/ready}
+  - {name: Hugging Face TGI, port: 3000, probe: GET /info, signature: model_id field}
+  - {name: llama.cpp server, port: 8080, probe: GET /v1/models, signature: "owned_by llamacpp or Server llama.cpp header"}
+  - {name: LocalAI, port: 8080, probe: GET /metrics, signature: LocalAI markers}
+  - {name: LM Studio, port: 1234, probe: GET /api/v0/models, signature: model list}
+  - {name: LiteLLM proxy, port: 4000, probe: GET /health, signature: healthy_endpoints or litellm_metadata}
+  - {name: Kong AI Gateway, port: 8000, probe: GET /status, signature: Server kong header}
+  - {name: Open WebUI, port: 3000, probe: GET /api/config, signature: name Open WebUI}
+  - {name: Gradio app, port: 7860, probe: GET /config, signature: mode and components fields}
+  - {name: AnythingLLM, port: 3001, probe: GET /, signature: HTML contains AnythingLLM}
+  - {name: LibreChat, port: 3080, probe: GET /, signature: HTML contains LibreChat}
+  - {name: Generic OpenAI-compatible, port: varies, probe: GET /v1/models, signature: standard list response}
+
+mcp_endpoints:
+  probe_paths: [/mcp, /sse, /.well-known/oauth-protected-resource]
+  note: Probe only with approval; never invoke tools. Prefer gateway logs and service metadata (appProtocol mcp).
+
+a2a_endpoints:
+  probe_paths: [/.well-known/agent-card.json, /.well-known/agent.json]
+  note: A card without authentication requirements on an internal host is a finding.

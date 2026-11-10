@@ -18,7 +18,7 @@ sequenceDiagram
 
     Emp->>KYC: Open account for customer case C-1029
     KYC->>CBS: create_customer
-    KYC-->>OTel: span invoke_agent, gen_ai.agent.id = agt-kyc-prod
+    KYC-->>OTel: span invoke_agent, agent key = agt-kyc-prod
     KYC-->>OTel: span execute_tool create_customer
     OTel->>PROV: spans for case C-1029
     PROV->>INV: resolve agt-kyc-prod
@@ -42,7 +42,7 @@ flowchart LR
 
     subgraph WITH["With the inventory"]
         direction TB
-        Y1["Trace shows<br/>gen_ai.agent.id = agt-kyc-prod"]
+        Y1["Trace carries<br/>agent key = agt-kyc-prod"]
         Y2["CMDB returns owner, version,<br/>model, identity, tools, data"]
         Y3["Decision is explainable<br/>at that point in time"]
         Y4["Unknown agent IDs<br/>raise a shadow alert"]

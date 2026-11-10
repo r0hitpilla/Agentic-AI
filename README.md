@@ -197,12 +197,40 @@ flowchart LR
 | 11 | [Architecture and roadmap](docs/11-architecture-roadmap.md) | Component view, data flow, phased plan |
 | 12 | [KPIs and dashboard](docs/12-kpis.md) | Coverage metrics and dashboard views |
 | 13 | [Open questions and risks](docs/13-open-questions.md) | What to settle with the bank, and caveats |
+| 14 | [Agent profile](docs/14-agent-profile.md) | The 12 core + 5 bank-specific things to know about every agent, mapped to OWASP agentic risks |
+| 15 | [Pulling the inventory](docs/15-pulling-inventory.md) | Per-platform list APIs, fan-out, read-only permissions, sample code, gotchas |
+| 16 | [Repository scanning](docs/16-repository-scanning.md) | Repo and image pipeline, detectors, AI-BOM, "uses an LLM" vs "is an agent" |
+| 17 | [Tools landscape](docs/17-tools-landscape.md) | Native, commercial and open-source tools, and the gaps they leave |
+| 18 | [Risk scoring](docs/18-risk-scoring.md) | Formula, override rules, tiers, worked example |
+| 19 | [Scenario catalogue](docs/19-scenarios.md) | 99 situations across eleven angles, each with evidence, record type and action |
+| 20 | [External agents](docs/20-external-agents.md) | Customer, partner and payment-network agents reaching the bank |
+| 21 | [Threat model of the inventory](docs/21-inventory-threat-model.md) | Securing the inventory itself; using it as an enforcement control |
+| 22 | [Change watchlist](docs/22-change-watchlist.md) | What moved in 2026, what is still draft, how the software copes |
+| 23 | [Telemetry without code changes](docs/23-telemetry-without-code-changes.md) | Capture ladder from gateways and eBPF to operator injection; stitching lineage when trace context breaks |
 | — | [References](docs/references.md) | Sources behind every claim |
 
-Machine-readable artefacts:
+---
 
-- [`schemas/agent-record.schema.json`](schemas/agent-record.schema.json): JSON Schema for one agent deployment record
-- [`examples/kyc-onboarding-agent.yaml`](examples/kyc-onboarding-agent.yaml): a filled-in example record
+## The software's "brain"
+
+The docs explain the reasoning; the files below are what the software loads. Rules are deterministic: an LLM may suggest, but never decides an agent's status ([docs/21](docs/21-inventory-threat-model.md)).
+
+```mermaid
+flowchart LR
+    K["knowledge/*.yaml<br/>signatures · endpoints · connectors ·<br/>rules · risk model · scenarios ·<br/>telemetry capture"] --> E["Inventory engine"]
+    S["schemas/agent-record.schema.json"] --> E
+    E --> R[("Agent CMDB records")]
+    X["examples/*.yaml"] -.->|"test fixtures"| E
+    SC["knowledge/scenarios.yaml"] -.->|"one test per scenario"| E
+```
+
+| Path | What it is |
+|---|---|
+| [`knowledge/`](knowledge/README.md) | Detection signatures, LLM endpoints and model-server fingerprints, platform connectors, classification rules, risk model, scenario catalogue, telemetry capture methods |
+| [`schemas/agent-record.schema.json`](schemas/agent-record.schema.json) | JSON Schema for one agent record; managed records must have an approved owner, a runtime identity and gateway traffic |
+| [`examples/kyc-onboarding-agent.yaml`](examples/kyc-onboarding-agent.yaml) | A managed, critical-tier agent |
+| [`examples/shadow-loan-agent.yaml`](examples/shadow-loan-agent.yaml) | A shadow agent as first discovered |
+| [`scripts/render_scenarios.py`](scripts/render_scenarios.py) | Regenerates the scenario tables in docs/19 from the YAML |
 
 ---
 
@@ -226,11 +254,33 @@ Machine-readable artefacts:
 │   ├── 11-architecture-roadmap.md
 │   ├── 12-kpis.md
 │   ├── 13-open-questions.md
+│   ├── 14-agent-profile.md
+│   ├── 15-pulling-inventory.md
+│   ├── 16-repository-scanning.md
+│   ├── 17-tools-landscape.md
+│   ├── 18-risk-scoring.md
+│   ├── 19-scenarios.md            ← generated tables from knowledge/scenarios.yaml
+│   ├── 20-external-agents.md
+│   ├── 21-inventory-threat-model.md
+│   ├── 22-change-watchlist.md
+│   ├── 23-telemetry-without-code-changes.md
 │   └── references.md
+├── knowledge/                     ← machine-readable rules and facts
+│   ├── README.md
+│   ├── detection-signatures.yaml
+│   ├── llm-endpoints.yaml
+│   ├── platform-connectors.yaml
+│   ├── classification-rules.yaml
+│   ├── risk-model.yaml
+│   ├── scenarios.yaml
+│   └── telemetry-capture.yaml
 ├── schemas/
 │   └── agent-record.schema.json
-└── examples/
-    └── kyc-onboarding-agent.yaml
+├── examples/
+│   ├── kyc-onboarding-agent.yaml
+│   └── shadow-loan-agent.yaml
+└── scripts/
+    └── render_scenarios.py
 ```
 
 ---
@@ -239,4 +289,6 @@ Machine-readable artefacts:
 
 - Several building blocks are **drafts or preview**: OpenTelemetry `gen_ai.*` attributes (Development status), the CSA Agent Registry Specification, the IETF SCIM agents extension, RBI's FREE-AI recommendations and draft model-risk guidance.
 - Vendor capabilities (ServiceNow, Okta, AWS, Microsoft, open-source scanners) come from documentation and announcements, **not hands-on validation**. Prove each in a pilot with seeded test agents.
-- See [docs/13-open-questions.md](docs/13-open-questions.md) for the full list.
+- OpenTelemetry defines `gen_ai.agent.id` only on some agent spans, so the agent key also travels as a resource attribute ([docs/09](docs/09-telemetry-provenance.md)).
+- RBI's draft model-risk guidance is summarised from secondary sources where the draft text was not reachable; confirm details against the draft itself.
+- See [docs/13-open-questions.md](docs/13-open-questions.md) and [docs/22-change-watchlist.md](docs/22-change-watchlist.md).

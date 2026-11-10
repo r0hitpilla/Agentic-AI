@@ -1,0 +1,137 @@
+# Classification rules: deterministic logic the reconciliation engine applies.
+# Order matters: rules are evaluated top to bottom within each section; first match wins
+# unless "continue: true". Never let an LLM override these (docs/21, T2).
+# Human-readable versions: docs/05, docs/06, docs/07, docs/19.
+
+version: 1
+last_reviewed: 2026-11-10
+
+parameters:
+  dormancy_days: 30              # default; overridden by schedule_period + grace (SC-C05)
+  schedule_grace_days: 7
+  confidence_steward_threshold: 40
+  owner_reassignment_grace_days: 14
+  retention_years_after_retirement: 10   # RBI draft MRM guidance as reported; confirm on final text
+
+evidence_weights:                # confidence score, capped at 100
+  platform_api: 40
+  identity: 25
+  runtime: 20
+  code: 15
+
+identification_ranks:            # docs/07
+  - {rank: 1, key: platform_native_id, examples: [Bedrock ARN, Entra object ID, reasoningEngine name, sn_aia_agent sys_id], merge: auto}
+  - {rank: 2, key: runtime_identity, examples: [SPIFFE ID, AgentCore workload identity, service principal app ID], merge: auto}
+  - {rank: 3, key: gateway_credential, examples: [per-agent virtual key, OAuth client ID], merge: auto}
+  - {rank: 4, key: workload_fingerprint, examples: [deployment + image digest, VM host + process path], merge: auto_within_environment}
+  - {rank: 5, key: code_location, examples: [repo + path + agent name], merge: steward_candidate}
+  - {rank: 6, key: name_similarity, examples: [same name in two environments], merge: never_auto}
+
+source_of_truth:                 # docs/07
+  owner: governance_record
+  business_flow: governance_record
+  risk_tier: governance_record
+  identity: idp_or_iam
+  permissions: idp_or_iam
+  model_served: runtime_then_platform_api
+  tools: union_platform_api_and_runtime
+  data_sources: union_platform_api_and_runtime
+  status_last_seen: runtime
+  version: platform_api_or_image_digest
+
+record_type:                     # docs/19 decision 1
+  - id: RT-1
+    when: operator in [customer, partner, merchant, network]
+    then: external_agent
+  - id: RT-2
+    when: runs_on_user_device
+    then: endpoint_agent
+  - id: RT-3
+    when: model_selects_tools OR writes_without_human_review
+    then: agent
+  - id: RT-4
+    when: kind in [model_server, mcp_server, gateway]
+    then: infrastructure
+  - id: RT-5
+    when: calls_llm
+    then: ai_system
+  - id: RT-6
+    when: imports_only_without_constructs_or_runtime
+    then: not_agent
+
+managed_status:                  # docs/05; evaluated for agent and endpoint_agent records
+  - id: MS-1
+    when: retired_confirmed
+    then: retired
+  - id: MS-2
+    when: standby_flag
+    then: standby
+  - id: MS-3
+    when: NOT collector_health_ok_for_required_planes
+    then: keep_previous            # SC-I05: missing evidence is not dormancy
+  - id: MS-4
+    when: NOT registered AND runtime_seen AND NOT code_found
+    then: shadow
+    subtype: ghost
+  - id: MS-5
+    when: NOT registered AND runtime_seen
+    then: shadow
+  - id: MS-6
+    when: platform_api_found AND (NOT governance_record OR NOT active_owner)
+    then: unmanaged
+  - id: MS-7
+    when: no_runtime_for > dormancy_threshold
+    then: dormant
+    subtype: zombie_if_credentials_live
+  - id: MS-8
+    when: approved_record AND runtime_identity == registered_identity AND traffic_via_gateway AND minimum_profile_complete
+    then: managed
+  - id: MS-9
+    when: approved_record
+    then: unmanaged
+    reason: approved but fails identity, gateway or profile checks
+  - id: MS-10
+    when: registered AND NOT runtime_seen AND NOT code_found
+    then: declared
+
+identity_level:                  # docs/06
+  runtime_override: human principal observed on agent calls forces level 0
+  rules:
+  - id: IL-1
+    when: runtime_principal_is_human OR identity_shared_by_multiple_agents OR no_runs_as_identity
+    then: 0
+  - id: IL-2
+    when: static_secret_in_use OR no_idp_record OR NOT active_owner
+    then: 1
+  - id: IL-3
+    when: delegation_tokens_seen AND access_review_within_12_months
+    then: 3
+  - id: IL-4
+    when: default
+    then: 2
+
+drift_triggers:                  # docs/07, docs/19 group H
+  - model_served_changed
+  - tool_added_or_removed
+  - tool_definition_hash_changed
+  - system_prompt_hash_changed
+  - data_source_added
+  - data_classification_raised
+  - identity_or_permissions_changed
+  - sharing_scope_widened
+  - new_channel_or_caller
+  - owner_left
+
+span_acceptance:                 # docs/09, docs/21 T3
+  - id: SP-1
+    when: agent_key_missing AND genai_operation_present
+    then: shadow_candidate
+  - id: SP-2
+    when: agent_key_unknown
+    then: shadow_alert
+  - id: SP-3
+    when: runtime_identity != registered_identity(agent_key)
+    then: quarantine_and_flag_impersonation
+  - id: SP-4
+    when: default
+    then: accept_into_provenance

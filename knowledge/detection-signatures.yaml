@@ -1,0 +1,178 @@
+# Detection signatures for code, images, workloads and endpoints.
+# Used by collectors (docs/04, docs/16). A single weak signal never creates an agent:
+# combine signals and apply classification-rules.yaml.
+#
+# strength: weak   - suggests AI use (an import, a dependency)
+#           medium - suggests an agent (constructs, tool definitions, MCP client)
+#           strong - declares an agent (agent card, kagent CRD, IaC agent resource)
+
+version: 1
+last_reviewed: 2026-11-10
+
+packages:
+  python:
+    agent_frameworks:
+      - {name: langgraph, strength: medium}
+      - {name: langchain, strength: weak}
+      - {name: langchain-core, strength: weak}
+      - {name: langchain-mcp-adapters, strength: medium}
+      - {name: crewai, strength: medium}
+      - {name: autogen-agentchat, strength: medium}
+      - {name: ag2, strength: medium}
+      - {name: semantic-kernel, strength: medium}
+      - {name: agent-framework, strength: medium, note: Microsoft Agent Framework}
+      - {name: openai-agents, strength: medium}
+      - {name: google-adk, strength: medium}
+      - {name: claude-agent-sdk, strength: medium}
+      - {name: llama-index, strength: weak}
+      - {name: pydantic-ai, strength: medium}
+      - {name: smolagents, strength: medium}
+      - {name: strands-agents, strength: medium}
+      - {name: bedrock-agentcore, strength: medium}
+      - {name: mcp, strength: medium, note: MCP SDK, client or server}
+      - {name: fastmcp, strength: medium, note: MCP server framework}
+    llm_clients:
+      - {name: openai, strength: weak}
+      - {name: anthropic, strength: weak}
+      - {name: google-genai, strength: weak}
+      - {name: google-cloud-aiplatform, strength: weak}
+      - {name: boto3, strength: none, note: only meaningful with bedrock-runtime calls}
+      - {name: litellm, strength: weak}
+      - {name: ollama, strength: weak}
+      - {name: mistralai, strength: weak}
+      - {name: cohere, strength: weak}
+      - {name: ibm-watsonx-ai, strength: weak}
+      - {name: oci, strength: none, note: only meaningful with generative_ai calls}
+  javascript:
+    agent_frameworks:
+      - {name: "@langchain/langgraph", strength: medium}
+      - {name: "@langchain/core", strength: weak}
+      - {name: "@openai/agents", strength: medium}
+      - {name: "@modelcontextprotocol/sdk", strength: medium}
+      - {name: "@anthropic-ai/claude-agent-sdk", strength: medium}
+      - {name: "@mastra/core", strength: medium}
+      - {name: ai, strength: weak, note: Vercel AI SDK; agent if tools are defined}
+      - {name: "@google/adk", strength: medium, note: verify package name}
+    llm_clients:
+      - {name: openai, strength: weak}
+      - {name: "@anthropic-ai/sdk", strength: weak}
+      - {name: "@google/genai", strength: weak}
+      - {name: "@aws-sdk/client-bedrock-runtime", strength: weak}
+      - {name: "@azure/openai", strength: weak}
+  java:
+    agent_frameworks:
+      - {name: "dev.langchain4j:langchain4j", strength: weak}
+      - {name: "org.springframework.ai:spring-ai", strength: weak}
+      - {name: "io.modelcontextprotocol.sdk:mcp", strength: medium}
+      - {name: "com.google.adk:google-adk", strength: medium}
+  dotnet:
+    agent_frameworks:
+      - {name: Microsoft.SemanticKernel, strength: medium}
+      - {name: Microsoft.Agents.AI, strength: medium, note: Microsoft Agent Framework}
+      - {name: ModelContextProtocol, strength: medium}
+  go:
+    agent_frameworks:
+      - {name: github.com/tmc/langchaingo, strength: weak}
+      - {name: github.com/mark3labs/mcp-go, strength: medium}
+      - {name: github.com/modelcontextprotocol/go-sdk, strength: medium}
+      - {name: google.golang.org/adk, strength: medium}
+
+code_constructs:
+  # Regex-level hints; prefer AST matching where available.
+  - {pattern: "StateGraph\\(", lang: python, strength: medium, meaning: LangGraph graph}
+  - {pattern: "create_react_agent\\(", lang: python, strength: medium, meaning: ReAct agent}
+  - {pattern: "\\bCrew\\(", lang: python, strength: medium, meaning: CrewAI crew}
+  - {pattern: "\\bAgent\\(", lang: [python, typescript], strength: medium, meaning: generic agent constructor}
+  - {pattern: "@tool\\b", lang: python, strength: medium, meaning: tool definition}
+  - {pattern: "tools\\s*=\\s*\\[", lang: [python, typescript], strength: medium, meaning: tool list passed to a model}
+  - {pattern: "ClientSession\\(|stdio_client\\(|streamablehttp_client\\(", lang: python, strength: medium, meaning: MCP client}
+  - {pattern: "FastMCP\\(|@mcp\\.tool", lang: python, strength: medium, meaning: MCP server}
+  - {pattern: "system_prompt\\s*=|instructions\\s*=", lang: [python, typescript], strength: weak, meaning: agent instructions}
+  - {pattern: "invoke_agent|InvokeAgent", lang: any, strength: medium, meaning: calls a hosted agent}
+
+files:
+  mcp_configs:
+    - mcp.json
+    - .mcp.json
+    - .cursor/mcp.json
+    - .vscode/mcp.json
+    - claude_desktop_config.json
+    - .gemini/settings.json
+    - .codeium/windsurf/mcp_config.json
+  agent_declarations:
+    - {path: .well-known/agent-card.json, strength: strong, note: A2A v0.3+ and v1.0}
+    - {path: .well-known/agent.json, strength: strong, note: A2A before v0.3}
+    - {path: AGENTS.md, strength: weak, note: instructions for coding agents; indicates agent use in the repo}
+    - {path: CLAUDE.md, strength: weak}
+    - {path: SKILL.md, strength: weak}
+    - {path: .github/copilot-instructions.md, strength: weak}
+  prompts:
+    - "*.prompt"
+    - "prompts/**"
+    - "*.prompty"
+  workflow_exports:
+    - {platform: n8n, hint: "workflow JSON with nodes of type @n8n/n8n-nodes-langchain.agent"}
+    - {platform: flowise, hint: "chatflow JSON with agent nodes"}
+    - {platform: dify, hint: "DSL YAML with agent or llm nodes"}
+
+infrastructure_as_code:
+  terraform:
+    - {resource: aws_bedrockagent_agent, strength: strong}
+    - {resource: aws_bedrockagent_agent_action_group, strength: strong}
+    - {resource: aws_bedrockagent_knowledge_base, strength: medium}
+    - {resource_prefix: aws_bedrockagentcore_, strength: strong}
+    - {resource: google_vertex_ai_reasoning_engine, strength: strong}
+    - {resource: oci_generative_ai_agent_agent, strength: strong}
+    - {resource: azurerm_cognitive_account, strength: weak, note: check for Foundry projects}
+  cloudformation:
+    - {type: "AWS::Bedrock::Agent", strength: strong}
+    - {type: "AWS::Bedrock::AgentAlias", strength: strong}
+    - {type: "AWS::Bedrock::Flow", strength: strong}
+    - {type_prefix: "AWS::BedrockAgentCore::", strength: strong}
+  bicep_arm:
+    - {type: "Microsoft.CognitiveServices/accounts/projects", strength: weak}
+  kubernetes:
+    - {apiVersion: kagent.dev/v1alpha2, kind: Agent, strength: strong}
+    - {apiVersion: kagent.dev/v1alpha2, kind: ModelConfig, strength: medium}
+    - {kind: RemoteMCPServer, strength: medium}
+    - {service_appProtocol: mcp, strength: medium}
+  salesforce_sfdx:
+    - {metadata: GenAiPlannerBundle, strength: strong}
+    - {metadata: Bot, strength: medium}
+
+environment_variables:
+  # Presence on a workload suggests direct model access (and possible gateway bypass).
+  - OPENAI_API_KEY
+  - OPENAI_BASE_URL
+  - ANTHROPIC_API_KEY
+  - AZURE_OPENAI_API_KEY
+  - AZURE_OPENAI_ENDPOINT
+  - GOOGLE_API_KEY
+  - GEMINI_API_KEY
+  - MISTRAL_API_KEY
+  - COHERE_API_KEY
+  - GROQ_API_KEY
+  - OPENROUTER_API_KEY
+  - HF_TOKEN
+  - LITELLM_API_KEY
+  - OTEL_RESOURCE_ATTRIBUTES  # check for the bank agent key
+
+endpoint_processes:
+  # Local agents and AI apps; confirm with the EDR's own catalogue (e.g. Defender support matrix).
+  - {name: Claude Code, process_hints: [claude], kind: coding_agent}
+  - {name: GitHub Copilot CLI, process_hints: [copilot], kind: coding_agent}
+  - {name: Cursor, process_hints: [Cursor], kind: agentic_ide}
+  - {name: Windsurf, process_hints: [Windsurf], kind: agentic_ide}
+  - {name: Claude Desktop, process_hints: [Claude], kind: desktop_assistant}
+  - {name: ChatGPT Desktop, process_hints: [ChatGPT], kind: desktop_assistant}
+  - {name: ChatGPT Atlas, process_hints: [Atlas], kind: agentic_browser}
+  - {name: Perplexity Comet, process_hints: [Comet], kind: agentic_browser}
+  - {name: Ollama, process_hints: [ollama], kind: local_model_server}
+  - {name: LM Studio, process_hints: [LM Studio, lms], kind: local_model_server}
+
+identity_signals:
+  - {signal: human principal calling CBS or LLM APIs at machine rate, meaning: agent on human credentials (identity level 0)}
+  - {signal: one principal used by several workloads, meaning: shared service account (identity level 0)}
+  - {signal: OAuth consent grant to an AI application, meaning: SaaS AI or agent with delegated access}
+  - {signal: LLM provider key in a vault or CI variable, meaning: candidate agent; owner from vault path}
+  - {signal: Entra agentIdentity or AgentCore workload identity without CMDB link, meaning: unmanaged agent}

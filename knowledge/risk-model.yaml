@@ -1,0 +1,88 @@
+# Risk model: residual = capability x exposure x data_sensitivity x (1 - control_coverage), scaled 0-100.
+# Human-readable version: docs/18-risk-scoring.md. Starting values; calibrate with the risk committee.
+
+version: 1
+last_reviewed: 2026-11-10
+
+factors:
+  capability:              # take the maximum over the agent's tools and actions
+    read_only: 0.2
+    internal_write: 0.5
+    external_send: 0.8
+    code_execution: 0.8
+    delegates_to_agents: 0.8
+    money_movement: 1.0
+    customer_record_change: 1.0
+    credit_decision: 1.0
+  exposure:                # maximum over channels and audiences
+    single_team_internal: 0.2
+    tenant_internal: 0.5
+    partner_or_vendor_input: 0.8
+    customer_facing: 1.0
+    public_internet: 1.0
+    email_web_or_ticket_input: 1.0
+  data_sensitivity:        # maximum over data sources and tool outputs
+    public: 0.2
+    internal: 0.5
+    pii: 0.8
+    account: 1.0
+    card: 1.0
+    credit: 1.0
+
+control_coverage:          # sum of credits, capped at max_coverage
+  max_coverage: 0.9
+  credits:
+    guardrails_in_and_out: 0.15
+    human_in_the_loop_before_write: 0.25
+    full_telemetry_with_agent_key: 0.10
+    active_named_owner: 0.10
+    pinned_allowlisted_tools: 0.10
+    identity_level_2_or_3: 0.15
+    kill_switch_tested_last_quarter: 0.15
+
+tiers:                     # by residual score (0-100), before overrides
+  - {tier: low, below: 10}
+  - {tier: medium, below: 25}
+  - {tier: high, below: 50}
+  - {tier: critical, below: 101}
+
+overrides:                 # applied in order after scoring; take the higher tier
+  - id: RO-1
+    name: toxic combination
+    when: untrusted_input AND data_sensitivity >= 0.8 AND capability >= 0.8
+    min_tier: critical
+  - id: RO-2
+    name: money or credit without human review
+    when: (money_movement OR credit_decision) AND NOT human_in_the_loop_before_write
+    min_tier: critical
+  - id: RO-3
+    name: scores creditworthiness of individuals
+    when: credit_scoring_of_individuals
+    min_tier: high
+    reason: EU AI Act Annex III high-risk; RBI material decision-making
+  - id: RO-4
+    name: shadow or identity level 0
+    when: managed_status == shadow OR identity_level == 0
+    min_tier: high
+  - id: RO-5
+    name: customer-facing
+    when: customer_facing
+    min_tier: medium
+
+tier_obligations:
+  critical: {approval: board risk committee, rereview: every drift event, rating_review: quarterly, kill_switch_test: monthly}
+  high: {approval: risk committee, rereview: every drift event, rating_review: annually, kill_switch_test: quarterly}
+  medium: {approval: business owner and AI steward, rereview: model or tool change, rating_review: annually, kill_switch_test: half-yearly}
+  low: {approval: AI steward, rereview: annual, rating_review: annually, kill_switch_test: annually}
+
+owasp_asi:                 # OWASP Top 10 for Agentic Applications 2026 (published December 2025)
+  ASI01: {name: Agent Goal Hijack, signals: [untrusted input channel, write tools]}
+  ASI02: {name: Tool Misuse and Exploitation, signals: [write or delete tools without HITL]}
+  ASI03: {name: Identity and Privilege Abuse, signals: [identity level 0 or 1, shared or human credentials]}
+  ASI04: {name: Agentic Supply Chain Vulnerabilities, signals: [unpinned MCP servers, runtime-loaded tools, tool definition changes]}
+  ASI05: {name: Unexpected Code Execution, signals: [code execution tool, shell access]}
+  ASI06: {name: Memory and Context Poisoning, signals: [persistent memory, RAG over editable content]}
+  ASI07: {name: Insecure Inter-Agent Communication, signals: [unauthenticated A2A, unsigned agent cards]}
+  ASI08: {name: Cascading Failures, signals: [long delegation chains, no circuit breaker]}
+  ASI09: {name: Human-Agent Trust Exploitation, signals: [customer-facing persuasion, rubber-stamp approvals]}
+  ASI10: {name: Rogue Agents, signals: [no owner, dormant with live credentials, unreviewed drift]}

@@ -55,7 +55,7 @@ erDiagram
     AGENT_DEPLOYMENT }o--o{ GUARDRAIL : "protected by"
 
     AGENT_DEPLOYMENT {
-        string agent_uid PK "same value as gen_ai.agent.id"
+        string agent_uid PK "same value as the agent key in telemetry"
         string external_ids "ARN, Entra object ID, K8s UID, image digest"
         string platform
         string environment
@@ -165,7 +165,7 @@ flowchart LR
 
 It grounds the profile in the IETF SCIM agents extension draft and uses SPIFFE URIs as agent IDs.
 
-> **One rule ties this to the rest of the platform:** `agent_uid` must be the same value the agent emits as `gen_ai.agent.id` in telemetry ([09](09-telemetry-provenance.md)). If the CMDB key and the trace attribute differ, provenance joins break.
+> **One rule ties this to the rest of the platform:** `agent_uid` must be the same value the agent carries on every span (as a resource attribute, and as `gen_ai.agent.id` where the OpenTelemetry conventions define it; see [09](09-telemetry-provenance.md)). If the CMDB key and the trace value differ, provenance joins break.
 
 See [`schemas/agent-record.schema.json`](../schemas/agent-record.schema.json) and the [example record](../examples/kyc-onboarding-agent.yaml).
 

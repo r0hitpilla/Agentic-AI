@@ -1,0 +1,127 @@
+# Telemetry capture methods that need little or no client code change, and
+# lineage-stitching strategies for when trace context breaks.
+# Human-readable version: docs/23-telemetry-without-code-changes.md.
+
+version: 1
+last_reviewed: 2026-11-10
+
+capture_methods:
+  - id: TC-GW-AI
+    tier: 0
+    method: AI gateway (LLM, MCP, A2A)
+    examples: [LiteLLM proxy with OTel v2, agentgateway, Kong AI Gateway, AgentCore Gateway]
+    code_change: none
+    restart: none
+    client_action: point base URL or egress at the gateway; one virtual key per agent
+    captures: [model requested and served, token usage, tool names for MCP calls, caller virtual key or team, guardrail outcomes]
+    misses: [in-process agent steps, calls that bypass the gateway]
+    context_propagation: LiteLLM accepts incoming W3C traceparent
+    notes: LiteLLM OTel v2 is enabled with LITELLM_OTEL_V2=true; message content off by default
+  - id: TC-GW-API
+    tier: 0
+    method: Service mesh, API gateway or ESB
+    examples: [Istio or other Envoy-based mesh, API gateway in front of CBS, ESB access logs]
+    code_change: none
+    restart: sidecar injection may need a restart
+    captures: [per-hop request spans and access logs into core systems]
+    misses: [end-to-end joins unless apps forward traceparent, tracestate, x-request-id]
+  - id: TC-PLATFORM
+    tier: 0
+    method: Platform-native agent telemetry
+    examples:
+      - AgentCore Runtime metrics and logs by default; spans after enabling Transaction Search and tracing
+      - Copilot Studio environment-level export to Application Insights (preview, managed environments, public cloud)
+      - Microsoft Foundry tracing
+    code_change: none
+    restart: none
+    captures: [agent turns, tool calls, outputs for agents on those platforms]
+    misses: [agents elsewhere; some exports use non-OTel ID formats]
+  - id: TC-AUDIT
+    tier: 0
+    method: Cloud audit logs
+    examples: [CloudTrail Bedrock InvokeModel and Converse, Azure OpenAI diagnostics, GCP Data Access logs]
+    code_change: none
+    restart: none
+    captures: [caller identity per model call, including over private endpoints]
+    misses: [agent structure, business context]
+  - id: TC-CDC
+    tier: 0
+    method: Database audit and change data capture
+    examples: [native DB audit, CDC on tables agents write]
+    code_change: none
+    restart: none
+    captures: [what data changed, by which DB principal, when]
+    misses: [why; which agent unless the DB principal is per agent]
+  - id: TC-OBI
+    tier: 1
+    method: OpenTelemetry eBPF Instrumentation (OBI)
+    examples: [OBI DaemonSet on Kubernetes, OBI on Linux hosts]
+    status: v1.0.0 announced 2026-10-30
+    code_change: none
+    restart: none
+    privileges: elevated Linux capabilities or root to load eBPF programs
+    languages: [Java, .NET, Go, Python, Ruby, Node.js, C, C++, Rust]
+    captures: [HTTP, gRPC, Kafka, NATS, MQTT, Postgres, MySQL, MSSQL, Redis, GenAI provider and MCP calls]
+    context_propagation: writes traceparent on outgoing HTTP/1.x and plaintext HTTP/2 for supported runtimes
+    misses: [propagation over encrypted HTTP/2, in-process reasoning, detailed GenAI payloads unless configured]
+  - id: TC-OTEL-OPERATOR
+    tier: 2
+    method: OpenTelemetry Operator auto-instrumentation
+    examples: ["Instrumentation resource + annotation instrumentation.opentelemetry.io/inject-python: \"true\""]
+    code_change: none
+    restart: required (annotation read at pod start)
+    languages: [.NET, Deno, Go (privileged eBPF sidecar), Java, Node.js, Python, Apache HTTPD, NGINX]
+    captures: [library spans incl. HTTP clients, DB, messaging, and GenAI SDKs where instrumentations are installed]
+    context_propagation: handled by instrumented libraries, including before TLS
+  - id: TC-OPENLIT-OPERATOR
+    tier: 2
+    method: OpenLIT Operator
+    examples: [AutoInstrumentation resource selecting pods by label]
+    code_change: none
+    restart: required
+    languages: [Python (fully supported), others on roadmap]
+    captures: [LLM providers, agent frameworks, vector databases, MCP]
+  - id: TC-ADOT
+    tier: 2
+    method: ADOT or opentelemetry-instrument start command
+    examples: ["opentelemetry-instrument python agent.py", AWS Lambda OpenTelemetry layer]
+    code_change: none (start command and env vars only)
+    restart: required
+    captures: [framework spans for Strands, LangChain, CrewAI and libraries covered by OpenInference, OpenLLMetry, OpenLIT]
+  - id: TC-FRAMEWORK
+    tier: 3
+    method: Framework-native OTel export
+    examples: [framework tracing switched on by env var or config]
+    code_change: config or one line
+    restart: required
+    captures: [agent, workflow and tool spans in the framework's structure]
+  - id: TC-SDK
+    tier: 4
+    method: Thin bank SDK
+    code_change: small
+    restart: release
+    captures: [case ID, on-behalf-of principal, decision outcomes, explicit provenance entities]
+    use_when: lower tiers leave a gap in a regulated flow
+
+enrichment:                       # done in the bank's OTel Collector, not in the app
+  agent_key_from: [gateway virtual key, k8s deployment or pod labels, runtime identity]
+  lookup: CMDB maps those facts to agent_uid and business flow
+  set_attributes: [bank.agent.uid, bank.business_flow]
+  redact: [prompt and response content, customer identifiers]
+  tokenise: [case IDs, account numbers, transaction references]
+
+lineage_stitching:                # every provenance edge records method and confidence
+  - {method: observed_trace, rule: same trace ID via propagated traceparent, confidence: high}
+  - {method: business_key, rule: shared case ID, application number, UTR or conversation ID, confidence: medium_high}
+  - {method: data_lineage, rule: CDC row written by A then read by B, confidence: medium}
+  - {method: identity_time_window, rule: same identity within a short window, confidence: low, review: required}
+
+client_questions:
+  - Which runtimes and languages run the agents, and where (Kubernetes, VMs, serverless, SaaS)?
+  - Can a privileged DaemonSet run on production nodes? If not, can pods be annotated and restarted?
+  - Will LLM, MCP and A2A traffic go through a bank AI gateway?
+  - Is there a mesh, API gateway or ESB in front of core systems, and do apps forward traceparent?
+  - Which business keys travel through each flow, and where do they appear?
+  - Which databases can enable audit or CDC on tables agents write?
+  - Which managed agent platforms are used, and can their telemetry be exported?
+  - What PII may appear in telemetry, and what retention applies?

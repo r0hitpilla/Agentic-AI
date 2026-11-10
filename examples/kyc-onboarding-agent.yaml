@@ -13,21 +13,39 @@ definition:
   definition_id: def-kyc-onboarding
   name: KYC onboarding agent
   purpose: Collect and verify customer KYC documents during account opening, then create the customer record in core banking.
+  record_type: agent
+  agent_category: custom_code
+  operator: bank
   framework: langgraph
   framework_version: "0.4"
   autonomy: human_in_the_loop
+  sub_agents: [document-extractor, address-matcher]
 
 governance:
   record_id: gov-kyc-onboarding
   approval_status: approved
-  risk_tier: high
-  regulatory_tags: [rbi_free_ai, rbi_mrm]
+  risk_tier: critical
+  regulatory_tags: [rbi_free_ai, rbi_mrm, dpdp]
   owner:
     business_owner: Head of Retail Onboarding
     technical_owner: Digital Onboarding Platform Lead
     team: digital-onboarding
     cost_centre: CC-RET-0420
+  roles:
+    developer: Onboarding Agent Engineering Lead
+    validator: Model Risk Validation Team Lead
+    approver: Risk Management Committee of the Board
+  validation_status: validated
   business_flows: [account_opening]
+  customer_facing:
+    is_customer_facing: true
+    ai_disclosure: true
+    human_handoff: true
+  kill_switch:
+    mechanism: Revoke gateway key vk-agt-kyc-prod and scale deployment to zero
+    authorised_roles: [AI steward on call, SOC duty manager]
+    last_tested: "2026-10-20"
+  jurisdictions: [IN]
   approved_on: "2026-09-15"
   next_review: "2027-03-15"
 
@@ -39,6 +57,7 @@ deployment:
   version: 2.4.1
   image_digest: sha256:9f2b7c1e4a6d8f0b3c5e7a9d1f3b5c7e9a1d3f5b7c9e1a3d5f7b9c1e3a5d7f9b
   code_repo: git.bank.internal/onboarding/kyc-agent
+  standby: false
   first_seen: "2026-09-20T06:12:00Z"
   last_seen: "2026-11-10T05:58:41Z"
 
@@ -51,6 +70,11 @@ identity:
   delegation: token_exchange_on_behalf_of
   last_access_review: "2026-10-01"
   last_used: "2026-11-10T05:58:41Z"
+  additional_credentials:
+    - credential_id: db-kyc-store-agt-kyc-prod
+      type: database_login
+      static: false
+      vault_path: vault://kv/onboarding/kyc-agent/db
 
 classification:
   managed_status: managed
@@ -60,6 +84,22 @@ classification:
   confidence: 100
   evidence_planes: [platform_api, identity, runtime, code]
   drift_open: false
+  profile_completeness: 100
+
+risk:
+  score: 10
+  tier: critical
+  toxic_combination: true
+  overrides_applied: [RO-1]
+  owasp_asi: [ASI01, ASI02, ASI06, ASI07]
+
+memory:
+  type: session
+  store: none (no cross-session memory)
+
+exposure:
+  audience: customer
+  untrusted_inputs: true
 
 models:
   - model_id: bank-llm-large
@@ -98,7 +138,13 @@ delegates_to: [agt-sanctions-screening-prod]
 channels: [branch-console, mobile-onboarding]
 guardrails: [gw-pii-redaction, gw-prompt-injection-filter]
 
+logging:
+  otel: true
+  platform_logs: [gateway, openshift-audit, cbs-api-audit]
+  retention_days: 3650
+
 telemetry:
-  emits_gen_ai_agent_id: true
+  emits_agent_key: true
+  agent_key_attribute: bank.agent.uid
   otel_service_name: kyc-onboarding-agent
   last_span_seen: "2026-11-10T05:58:41Z"

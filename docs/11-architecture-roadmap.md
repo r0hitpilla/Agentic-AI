@@ -89,7 +89,7 @@ flowchart LR
 | 1 · Foundation | Three-layer data model, intake form, AWS / Azure / GCP / SaaS connectors, first dashboard | — | Every cloud and SaaS agent has a CI and a governance record |
 | 2 · On-prem and code | cdxgen AI-BOM scan, OpenShift and VM collectors, model-server scan, bank AI gateway with per-agent keys | Phase 1 data model | Production LLM egress only via the gateway |
 | 3 · Identity | `RUNS_AS` join, SPIRE on-prem, identity-level computation, shadow classification, eBPF evidence | Gateway and collectors | Identity level known for every deployment |
-| 4 · Provenance | `gen_ai.agent.id` = `agent_uid` enforced, span join, PROV graph, drift reviews, ServiceNow sync | Stable agent IDs and identities | First half-yearly inventory snapshot (FREE-AI) |
+| 4 · Provenance | Agent key on every span enforced at deploy time, span join, PROV graph, drift reviews, ServiceNow sync | Stable agent IDs and identities | First half-yearly inventory snapshot (FREE-AI) |
 
 ## Where it runs
 

@@ -107,5 +107,15 @@ quadrantChart
 
 A Copilot Studio agent built by an employee in the default environment is platform-hosted **and** shadow. A LangGraph service on OpenShift that passed intake and runs behind the gateway is self-hosted **and** managed. Hosting is a filter on the tree, not a branch of it.
 
+## What stays outside the four counts
+
+| Record | Where it goes | Why it is not in the tree |
+|---|---|---|
+| Disaster-recovery copy (`standby`) | Counted under its agent, shown separately | No traffic by design; must not be flagged dormant ([19](19-scenarios.md), SC-C04) |
+| Retired agent (`retired`) | History only, kept 10+ years | No longer running; regulators may still ask ([19](19-scenarios.md), SC-C12) |
+| Non-agent AI system (chatbot, RAG app) | AI system register | Regulators want it inventoried, but it has no agent profile ([16](16-repository-scanning.md)) |
+| External agent (customer, partner, network) | External agent register | The bank governs its access, not the agent ([20](20-external-agents.md)) |
+| Endpoint agent (IDE assistant, agentic browser) | Its own sub-count, per user × device × type | Different unit of counting ([19](19-scenarios.md), SC-A07) |
+
 ---
 [← 01 Why inventory](01-why-inventory.md) · [Index](README.md) · [Next: 03 Data model →](03-data-model.md)

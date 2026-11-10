@@ -1,0 +1,236 @@
+# Platform connectors: how to list agents per platform, with scope, permissions,
+# field mappings to schemas/agent-record.schema.json, and known gotchas.
+# Human-readable version: docs/15-pulling-inventory.md.
+# confidence: documented (vendor docs), secondary (third-party docs or press), unverified.
+
+version: 1
+last_reviewed: 2026-11-10
+
+connectors:
+  - id: aws-bedrock-agents
+    platform: aws-bedrock-agents
+    hosting: platform_hosted
+    scope: account x region
+    list: bedrock-agent ListAgents
+    detail: [GetAgent, ListAgentActionGroups, GetAgentActionGroup, ListAgentKnowledgeBases, ListAgentAliases, ListAgentVersions, ListAgentCollaborators]
+    permissions: [bedrock:ListAgents, bedrock:GetAgent, bedrock:ListAgentActionGroups, bedrock:GetAgentActionGroup, bedrock:ListAgentKnowledgeBases, bedrock:GetKnowledgeBase, bedrock:ListAgentAliases, bedrock:ListAgentVersions]
+    mapping:
+      external_ids.arn: agentArn
+      definition.name: agentName
+      models[].model_id: foundationModel
+      identity.identity_id: agentResourceRoleArn
+      memory: memoryConfiguration
+      guardrails: guardrailConfiguration
+      deployment.version: agentVersion
+      lifecycle: agentStatus
+    gotchas: [AWS-managed ReadOnlyAccess may lag new services, agentResourceRoleArn is identity level 1 unless unique and owned]
+    confidence: documented
+  - id: aws-agentcore
+    platform: aws-agentcore
+    hosting: platform_hosted
+    scope: account x region
+    list: bedrock-agentcore-control ListAgentRuntimes
+    detail: [ListAgentRuntimeVersions, ListAgentRuntimeEndpoints, ListGateways, ListGatewayTargets, ListMemories, ListWorkloadIdentities, ListOauth2CredentialProviders, ListApiKeyCredentialProviders]
+    permissions: ["bedrock-agentcore:List*", "bedrock-agentcore:Get*"]
+    mapping:
+      external_ids.arn: agentRuntimeArn
+      definition.name: agentRuntimeName
+      deployment.version: agentRuntimeVersion
+      lifecycle: status
+    gotchas: [ListAgentRuntimes is a POST to /runtimes/, exclude data-plane invoke and memory-read permissions, control-plane actions keep growing]
+    confidence: documented
+  - id: aws-agent-registry
+    platform: aws-agent-registry
+    hosting: platform_hosted
+    scope: organisation (auto-detects AgentCore runtimes and gateways)
+    list: registry record search and list
+    status: GA 2026-08-31 in five regions plus GovCloud (US-West)
+    gotchas: [classic Bedrock Agents and self-hosted agents need manual or URL-based records, treat as source and write-back target not as truth]
+    confidence: documented
+  - id: aws-cloudtrail-llm-callers
+    platform: aws
+    hosting: evidence
+    scope: organisation trail
+    list: CloudTrail Lake or Athena query on bedrock.amazonaws.com InvokeModel, Converse, InvokeAgent grouped by userIdentity.arn
+    permissions: [cloudtrail:LookupEvents, athena query on the trail bucket]
+    gotchas: [subtract principals of registered agents to find shadow callers]
+    confidence: documented
+
+  - id: azure-foundry-agents
+    platform: azure-foundry
+    hosting: platform_hosted
+    scope: per Foundry project (find projects with Azure Resource Graph)
+    list: GET {projectEndpoint}/agents
+    detail: ["GET /agents/{name}", "GET /agents/{name}/versions"]
+    permissions: [Reader at management group, Azure AI User or custom read data actions on projects]
+    mapping:
+      definition.name: name
+      deployment.version: latest version
+      platform_kind: kind (prompt, hosted, workflow, external, voice)
+    gotchas: [external kind is metadata-only for agents running elsewhere, azd ai agent show does not list every agent, new kinds are preview]
+    confidence: documented
+  - id: power-platform-copilot-studio
+    platform: copilot-studio
+    hosting: platform_hosted
+    scope: tenant
+    list: POST https://api.powerplatform.com/resourcequery/resources/query (type == microsoft.copilotstudio/agents)
+    detail: [Dataverse bots table per environment, pac copilot list]
+    permissions: [Power Platform Administrator or Dynamics 365 Administrator]
+    gotchas: [classic chatbots excluded, connectors column is preview, maker agents in default environment are common shadow]
+    confidence: documented
+  - id: m365-agent-365-registry
+    platform: agent-365
+    hosting: platform_hosted
+    scope: tenant
+    list: GET https://graph.microsoft.com/v1.0/copilot/admin/catalog/packages
+    detail: ["GET /copilot/admin/catalog/packages/{id}"]
+    permissions: [AI Administrator or Global Administrator, at least one Agent 365 licence]
+    status: Agent 365 GA 2026-05-01; registry sync with AWS Bedrock and Google Cloud in public preview
+    gotchas: [LIST omits sharing scope; GET each package, /beta/agentRegistry retired 2026-06-15]
+    confidence: documented
+  - id: entra-agent-id
+    platform: entra
+    hosting: identity
+    scope: tenant
+    list: GET /v1.0/servicePrincipals/microsoft.graph.agentIdentity
+    detail: [/owners, appRoleAssignments, oauth2PermissionGrants, /applications/microsoft.graph.agentIdentityBlueprint, /users/microsoft.graph.agentUser]
+    permissions: [Application.Read.All, Directory.Read.All]
+    confidence: documented
+  - id: defender-agents
+    platform: defender
+    hosting: evidence
+    scope: tenant and onboarded devices
+    list: Advanced hunting AIAgentsInfo (migrating to AgentsInfo); local AI agent inventory in the Defender portal
+    permissions: [ThreatHunting.Read.All]
+    gotchas: [Copilot Studio and Foundry agent security needs an Agent 365-eligible licence from 2026-07-01, local discovery is process-based and MCP config discovery needs AV active mode and real-time protection]
+    confidence: documented
+
+  - id: gcp-agent-runtime
+    platform: gcp-agent-runtime
+    hosting: platform_hosted
+    scope: project x location
+    list: GET https://{region}-aiplatform.googleapis.com/v1/projects/{p}/locations/{l}/reasoningEngines
+    permissions: [aiplatform.reasoningEngines.list, aiplatform.reasoningEngines.get]
+    mapping:
+      definition.name: displayName
+      definition.framework: spec class (AdkApp, LanggraphAgent, A2aAgent and others)
+      identity.identity_id: service account
+    gotchas: [Vertex AI renamed Gemini Enterprise Agent Platform on 2026-04-22; API unchanged]
+    confidence: documented
+  - id: gcp-cloud-asset-inventory
+    platform: gcp
+    hosting: evidence
+    scope: organisation
+    list: searchAllResources asset type aiplatform.googleapis.com/ReasoningEngine
+    permissions: [roles/cloudasset.viewer]
+    confidence: documented
+  - id: gcp-agent-registry
+    platform: gcp-agent-registry
+    hosting: platform_hosted
+    scope: management project aggregating member projects
+    list: Agent Registry API
+    gotchas: [custom deployments need manual registration, skills in preview]
+    confidence: documented
+  - id: gcp-dialogflow-cx
+    platform: dialogflow-cx
+    hosting: platform_hosted
+    scope: project x location
+    list: projects.locations.agents.list
+    confidence: documented
+
+  - id: oci-genai-agents
+    platform: oci-genai-agents
+    hosting: platform_hosted
+    scope: compartment x region
+    list: Generative AI Agents API list agents and list agent endpoints (GenerativeAiAgentClient)
+    gotchas: [confirm exact operation names in the SDK]
+    confidence: secondary
+  - id: salesforce-agentforce
+    platform: salesforce
+    hosting: platform_hosted
+    scope: org
+    list: SOQL SELECT Id, DeveloperName, MasterLabel, Type FROM BotDefinition
+    detail: [Tooling GenAiPlannerDefinition, GenAiFunctionDefinition, Metadata GenAiPlannerBundle, GenAiPlugin, GenAiFunction]
+    permissions: [API Enabled, View Setup and Configuration (verify)]
+    gotchas: [agent metadata changed at API v68]
+    confidence: documented
+  - id: servicenow-ai-agents
+    platform: servicenow
+    hosting: platform_hosted
+    scope: instance
+    list: GET /api/now/table/sn_aia_agent
+    detail: [sn_aia_tool, sn_aia_agent_tool_m2m, sn_aia_usecase, sn_aia_team, sn_aia_version]
+    gotchas: [AI Control Tower table names differ across sources; check sys_db_object]
+    confidence: secondary
+  - id: uipath-agents
+    platform: uipath
+    hosting: platform_hosted
+    scope: organisation and tenant
+    list: Automation Cloud Agents page; TypeScript SDK Agents.getAll(start, end) for runtime data
+    gotchas: [no documented cross-tenant admin list API confirmed, agent types conversational, low-code, coded and advanced (preview)]
+    confidence: secondary
+  - id: watsonx-orchestrate
+    platform: watsonx-orchestrate
+    hosting: platform_hosted
+    scope: instance
+    list: GET /v2/orchestrate/agents/unified
+    permissions: [bearer token]
+    gotchas: [response schema not documented on the reference page]
+    confidence: documented
+  - id: pega
+    platform: pega
+    hosting: platform_hosted
+    scope: Pega application
+    list: none confirmed
+    gotchas: [inventory via application metadata and intake until an API is confirmed]
+    confidence: unverified
+  - id: databricks-serving
+    platform: databricks
+    hosting: platform_hosted
+    scope: workspace
+    list: GET /api/2.0/serving-endpoints (agents deployed with the Agent Framework)
+    confidence: documented
+  - id: databricks-agent-services
+    platform: databricks
+    hosting: platform_hosted
+    scope: metastore
+    list: GET /api/2.1/unity-catalog/agent-services
+    status: beta
+    gotchas: [owner returns null in this release, requires explicit privilege to see each service]
+    confidence: documented
+  - id: snowflake-cortex-agents
+    platform: snowflake
+    hosting: platform_hosted
+    scope: account
+    list: SHOW AGENTS IN ACCOUNT
+    permissions: [OWNERSHIP, USAGE, MODIFY or MONITOR on each agent, plus privileges on parent database and schema]
+    mapping:
+      definition.name: name
+      governance.owner.technical_owner: owner (role)
+    gotchas: [capped at 10000 rows, temporary agents only visible in their session]
+    confidence: documented
+  - id: openai-enterprise
+    platform: openai
+    hosting: saas
+    scope: workspace and organisation
+    list: Compliance API (GPTs, audit); Admin API (projects, service accounts, keys)
+    gotchas: [endpoint shapes from integrator docs, custom GPTs moving to plugins]
+    confidence: secondary
+  - id: kagent
+    platform: kubernetes
+    hosting: self_hosted
+    scope: cluster
+    list: kubectl get agents.kagent.dev -A
+    permissions: [get and list on agents.kagent.dev, modelconfigs, remotemcpservers]
+    mapping:
+      definition.name: metadata.name
+      models[].model_id: spec.declarative.modelConfig
+      tools: spec.declarative.tools
+      definition.autonomy: requireApproval per tool
+    confidence: documented
+  - id: n8n-flowise-dify
+    platform: workflow-automation
+    hosting: self_hosted
+    scope: instance
+    list: workflow export JSON or YAML; look for agent nodes and model credentials
+    confidence: secondary

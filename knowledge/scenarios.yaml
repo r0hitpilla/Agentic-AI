@@ -1,0 +1,853 @@
+# Scenario catalogue: situations the inventory engine must handle.
+# Each scenario says what evidence looks like, how to record it, and what to do.
+# docs/19-scenarios.md is generated from this file (scripts/render_scenarios.py).
+#
+# record_as values:
+#   agent           - full agent profile (docs/14)
+#   ai_system       - AI system record, no agent-specific profile
+#   endpoint_agent  - agent on a user device, keyed by user x device x agent type
+#   infrastructure  - MCP server, model server, gateway: linked to the agents that use it
+#   external_agent  - agent owned by a third party that reaches bank systems (docs/20)
+#   not_agent       - recorded only as a discarded finding with the reason
+#   procedure       - an event or request the inventory must be able to answer
+
+version: 1
+groups:
+  - id: A
+    name: What counts as an agent
+  - id: B
+    name: Topology and multi-agent systems
+  - id: C
+    name: Lifecycle and runtime shape
+  - id: D
+    name: Identity
+  - id: E
+    name: Location and hosting
+  - id: F
+    name: Network paths and evasion
+  - id: G
+    name: External and inbound agents
+  - id: H
+    name: Change and drift
+  - id: I
+    name: Conflicting or missing evidence
+  - id: J
+    name: Regulatory and operational events
+  - id: K
+    name: Telemetry capture without code changes
+
+scenarios:
+  # ---------------------------------------------------------------- A
+  - id: SC-A01
+    group: A
+    title: Chatbot with no tools
+    situation: Website or app assistant answers questions; it calls an LLM but has no tools.
+    signals: [LLM calls from one service, no execute_tool spans, no function-calling payloads]
+    record_as: ai_system
+    expected: AI system; customer-facing flag if customers use it
+    action: Record purpose, model, data sources, AI disclosure and human-handoff evidence.
+  - id: SC-A02
+    group: A
+    title: RAG app over bank data
+    situation: Staff assistant retrieves from policy documents or customer records and answers.
+    signals: [retrieval spans, vector DB connections, no write tools]
+    record_as: ai_system
+    expected: AI system with data sources; data sensitivity from the indexed content
+    action: Record each data source and its classification; re-review when the index scope grows.
+  - id: SC-A03
+    group: A
+    title: LLM step inside a batch job
+    situation: Nightly job summarises call transcripts and writes results to CRM.
+    signals: [scheduled workload, LLM calls in bursts, writes to CRM API]
+    record_as: agent
+    expected: Treat as agent when model output is written to a system of record without human review
+    action: Profile it as an autonomous agent with a schedule; dormancy threshold follows the schedule (SC-C05).
+  - id: SC-A04
+    group: A
+    title: RPA bot with an LLM step
+    situation: UiPath or similar robot uses an LLM to decide or extract, then acts in core systems.
+    signals: [robot account calling LLM endpoints, RPA platform agent records, screen or API actions]
+    record_as: agent
+    expected: Agent; identity is usually a shared robot account (identity level 0 or 1)
+    action: Give each agent its own robot identity; record the RPA platform as the hosting platform.
+  - id: SC-A05
+    group: A
+    title: Vendor SaaS with an embedded AI feature
+    situation: CRM or HR SaaS summarises or drafts using AI; no autonomous actions.
+    signals: [vendor release notes, SaaS admin settings, OAuth grants]
+    record_as: ai_system
+    expected: Third-party AI system; governance record with zero deployment CIs
+    action: Record vendor, data shared, contractual audit rights; review on vendor feature changes.
+  - id: SC-A06
+    group: A
+    title: Vendor SaaS with an embedded agent that acts
+    situation: Agentforce, ServiceNow AI Agents or similar take actions in the SaaS or via connectors.
+    signals: [SaaS agent APIs list it, connector calls to bank systems]
+    record_as: agent
+    expected: Platform-hosted agent, vendor-operated; managed only if approved, owned and on the gateway where possible
+    action: Pull via the SaaS API (docs/15); map connectors to tools and integration users to identities.
+  - id: SC-A07
+    group: A
+    title: Coding assistant in a developer IDE
+    situation: Copilot, Cursor, Claude Code or similar on developer machines with MCP servers configured.
+    signals: [endpoint process, MCP config files, IDE extensions, egress to provider]
+    record_as: endpoint_agent
+    expected: One record per user x device x agent type; identity level 0 (runs as the developer)
+    action: Inventory configured MCP servers; allow-list approved assistants and MCP servers; block access to production secrets.
+  - id: SC-A08
+    group: A
+    title: Coding agent in CI/CD
+    situation: An agent opens pull requests or changes infrastructure from a pipeline.
+    signals: [bot account commits, CI jobs calling LLMs, GitHub App or token with write scope]
+    record_as: agent
+    expected: Agent with repository write capability; supply-chain risk (ASI04, ASI05)
+    action: Unique app identity, branch protection, human review before merge, record repos in scope.
+  - id: SC-A09
+    group: A
+    title: Agentic browser on an employee machine
+    situation: An AI browser (for example ChatGPT Atlas or Perplexity Comet) acts in web apps using the employee's sessions.
+    signals: [browser process on endpoint, egress to the browser vendor, human sessions acting at machine pace]
+    record_as: endpoint_agent
+    expected: Shadow endpoint agent at identity level 0 unless explicitly approved
+    action: Detect on the endpoint and at egress; apply acceptable-use policy; block from internal banking apps.
+  - id: SC-A10
+    group: A
+    title: Standalone MCP server
+    situation: An MCP server exposes CBS or LOS functions; no agent found yet.
+    signals: [MCP endpoint (/mcp), service with appProtocol mcp, MCP SDK in code]
+    record_as: infrastructure
+    expected: Tool CI; every caller is an agent candidate
+    action: Record tools, credentials it holds and who may call it; route through the gateway; list callers.
+  - id: SC-A11
+    group: A
+    title: Model server with no known caller
+    situation: Ollama, vLLM or TGI is listening on an internal host.
+    signals: [model-server fingerprint (docs/04), GPU host, open port 11434 or 8000]
+    record_as: infrastructure
+    expected: Model CI; callers seen in flow logs are agent candidates
+    action: Identify owner and callers; require gateway in front; shadow alert if callers are unknown.
+  - id: SC-A12
+    group: A
+    title: Notebook experiments with tools
+    situation: Data scientists build agents in Jupyter, SageMaker Studio or Databricks notebooks.
+    signals: [notebook kernels with agent frameworks, workspace audit logs]
+    record_as: agent
+    expected: Declared or dev-stage; not managed production
+    action: Record as dev; flag immediately if it reads production customer data or calls production APIs.
+  - id: SC-A13
+    group: A
+    title: Consumer AI used by employees with bank data
+    situation: Staff use personal ChatGPT, Claude or Gemini accounts, including agent modes, for work.
+    signals: [egress to consumer AI domains, CASB events, OAuth grants from corporate accounts]
+    record_as: not_agent
+    expected: Shadow AI usage, not a bank agent; tracked as a usage risk, not a CI
+    action: CASB policy, DLP, sanctioned alternative; agent modes acting on bank systems are treated as SC-A09.
+  - id: SC-A14
+    group: A
+    title: Contact-centre voice bot
+    situation: IVR or voice agent authenticates customers and performs account actions.
+    signals: [telephony platform AI config, calls to account APIs]
+    record_as: agent
+    expected: Customer-facing agent; high capability if it moves money
+    action: Record channels, step-up authentication, disclosure and human handoff; risk override for customer-facing.
+
+  # ---------------------------------------------------------------- B
+  - id: SC-B01
+    group: B
+    title: Supervisor with in-process sub-agents
+    situation: One LangGraph service contains a supervisor and several sub-agents.
+    signals: [one workload, several internal invoke_agent spans with different gen_ai.agent.name]
+    record_as: agent
+    expected: One deployment CI; sub-agents listed as components unless separately versioned or deployed
+    action: Record sub-agent names and their tools in the profile; split into CIs only if they get separate identities.
+  - id: SC-B02
+    group: B
+    title: Agents calling each other over A2A
+    situation: Several agents in different services delegate tasks over A2A.
+    signals: [client invoke_agent spans, A2A agent cards, mTLS or OAuth between services]
+    record_as: agent
+    expected: One CI per agent with DELEGATES_TO edges
+    action: Require authenticated A2A; propagate delegation (act claims) so the original human stays visible.
+  - id: SC-B03
+    group: B
+    title: Agent exposed as a tool
+    situation: An agent is wrapped as an MCP tool or function for another agent.
+    signals: [MCP server whose handler invokes an agent, nested invoke spans]
+    record_as: agent
+    expected: Both are CIs; edge CALLS_TOOL with kind a2a_peer
+    action: Inherit the stricter risk tier along the edge; cap delegation depth.
+  - id: SC-B04
+    group: B
+    title: Delegation chain crosses trust boundaries
+    situation: Bank agent calls a vendor agent that calls another provider.
+    signals: [outbound A2A or API calls to vendor domains]
+    record_as: external_agent
+    expected: External dependency recorded on the bank agent; cascading-failure risk (ASI07, ASI08)
+    action: Record each external peer, data shared and contract; circuit breakers and timeouts.
+  - id: SC-B05
+    group: B
+    title: Same agent in many environments
+    situation: One agent definition deployed in DEV, UAT, PROD and two regions.
+    signals: [same image digest family, same repo, different namespaces or accounts]
+    record_as: agent
+    expected: One definition and governance record, one CI per environment or region
+    action: Never merge across environments; production approval does not cover DEV copies with production data (SC-C06).
+  - id: SC-B06
+    group: B
+    title: Agent factory creates agents on demand
+    situation: A no-code builder lets staff create agents from templates.
+    signals: [platform API lists many new agents, template IDs]
+    record_as: agent
+    expected: Each persistent agent is a CI; per-request instances are not
+    action: Apply intake at publish time; inherit template risk; detect mass creation.
+  - id: SC-B07
+    group: B
+    title: Shared MCP server used by many agents
+    situation: One MCP server holds CBS credentials and serves ten agents.
+    signals: [many callers in gateway MCP logs]
+    record_as: infrastructure
+    expected: One tool CI; its credentials are part of every caller's effective permissions
+    action: Compute blast radius through the tool; per-caller authorisation at the MCP server.
+  - id: SC-B08
+    group: B
+    title: Agent calls another institution's agent
+    situation: Bank agent negotiates or exchanges data with a fintech or another bank's agent.
+    signals: [outbound A2A to external domains, signed agent cards]
+    record_as: external_agent
+    expected: Outbound counterparty in the external agent register
+    action: Verify the counterparty card and keys; contractual basis; log every exchange.
+
+  # ---------------------------------------------------------------- C
+  - id: SC-C01
+    group: C
+    title: Ephemeral serverless agent
+    situation: Each request spins up a function that runs the agent and exits.
+    signals: [Lambda or Cloud Run invocations, no long-lived pod]
+    record_as: agent
+    expected: CI is the function and version, not each invocation
+    action: last_seen from invocation logs; identity is the function role.
+  - id: SC-C02
+    group: C
+    title: Autoscaled replicas
+    situation: Twenty pods of the same agent behind a service.
+    signals: [same deployment, many pod UIDs]
+    record_as: agent
+    expected: One CI; replicas share identity and key
+    action: Count once; fingerprint on deployment plus image digest, not pod UID.
+  - id: SC-C03
+    group: C
+    title: Canary or blue-green versions live together
+    situation: Version 2.4 and 2.5 both serve traffic in production.
+    signals: [two image digests under one deployment or two aliases]
+    record_as: agent
+    expected: One CI per environment with live versions and traffic split
+    action: Drift review must approve the new version before traffic ramps.
+  - id: SC-C04
+    group: C
+    title: Disaster-recovery standby
+    situation: A cold or warm copy in a second region gets no traffic.
+    signals: [platform record present, no runtime evidence]
+    record_as: agent
+    expected: CI with status standby, not dormant
+    action: Mark standby explicitly so dormancy rules skip it; still revoke unused standing credentials where possible.
+  - id: SC-C05
+    group: C
+    title: Scheduled monthly or quarterly agent
+    situation: Month-end or quarter-end reconciliation agent runs a few days per period.
+    signals: [schedule in orchestrator, activity bursts]
+    record_as: agent
+    expected: Active on its schedule; dormancy threshold equals the period plus grace
+    action: Store the schedule; flag only if a scheduled run is missed or credentials are used off-schedule.
+  - id: SC-C06
+    group: C
+    title: Dev or test copy using production data
+    situation: A UAT agent reads a production customer store.
+    signals: [non-prod environment, data-source classification PII or account]
+    record_as: agent
+    expected: High risk regardless of environment
+    action: Alert; block or mask; data access is judged by the data, not the environment label.
+  - id: SC-C07
+    group: C
+    title: Agent cloned or forked by another team
+    situation: Same code, new name, new owner.
+    signals: [name or code similarity, different repo or namespace]
+    record_as: agent
+    expected: New definition and governance record; never auto-merged with the original
+    action: Steward review; link lineage (forked_from) for supply-chain tracking.
+  - id: SC-C08
+    group: C
+    title: Retired agent with live credentials
+    situation: Agent was switched off but its keys, roles or identities remain.
+    signals: [no runtime 30+ days, credentials still valid, vault entries]
+    record_as: agent
+    expected: Dormant with live credentials (KPI must be zero)
+    action: Revoke credentials and identities; confirm retirement with owner; keep the record.
+  - id: SC-C09
+    group: C
+    title: Owner leaves the bank
+    situation: The named owner is a leaver in the IdP or HR feed.
+    signals: [SCIM or HR leaver event, owner account disabled]
+    record_as: agent
+    expected: Orphaned; not managed until reassigned (ASI10)
+    action: Auto-open reassignment task; suspend after a grace period for high or critical tiers.
+  - id: SC-C10
+    group: C
+    title: Reorganisation renames teams
+    situation: Business units merge; team and cost-centre names change.
+    signals: [HR org changes, owner team mismatch]
+    record_as: agent
+    expected: Same agents, new owner mapping
+    action: Update owner references in bulk; never create new CIs from an org change.
+  - id: SC-C11
+    group: C
+    title: Agent migrated to a new platform
+    situation: Moved from Bedrock Agents to AgentCore, or from a VM to OpenShift.
+    signals: [new platform record, old one stops, same repo and name]
+    record_as: agent
+    expected: New CI under the same definition; old CI retired; lineage link
+    action: Re-run identity onboarding for the new runtime; carry over approvals only after review.
+  - id: SC-C12
+    group: C
+    title: Long-term retention of retired agents
+    situation: An agent retired years ago is asked about.
+    signals: [audit or regulator request]
+    record_as: procedure
+    expected: Retired record retained for at least 10 years (RBI draft MRM guidance as reported)
+    action: Soft-delete only; keep CI history, approvals and provenance links.
+
+  # ---------------------------------------------------------------- D
+  - id: SC-D01
+    group: D
+    title: Agent runs on a human's credentials
+    situation: Calls to CBS or the LLM provider carry an employee principal.
+    signals: [human principal on agent spans or CBS logs, machine-rate activity]
+    record_as: agent
+    expected: Identity level 0; not managed
+    action: Issue an agent identity and delegation; revoke the human-credential path.
+  - id: SC-D02
+    group: D
+    title: Service account shared by several agents
+    situation: Three agents use one integration account.
+    signals: [one principal mapped to several agent keys]
+    record_as: agent
+    expected: Identity level 0 for each
+    action: Split identities; until then, provenance cannot tell the agents apart.
+  - id: SC-D03
+    group: D
+    title: One agent, several identities and credentials
+    situation: A cloud role, a database login and an API key all belong to one agent.
+    signals: [several principals with the same workload fingerprint]
+    record_as: agent
+    expected: One primary runtime identity plus HOLDS edges to every credential
+    action: Identity level comes from the primary identity; any static secret caps the level at 1 until rotated to short-lived.
+  - id: SC-D04
+    group: D
+    title: Identity re-issued after migration
+    situation: Cluster rebuild gives the agent a new SPIFFE ID or role ARN.
+    signals: [new identity, same workload fingerprint and image]
+    record_as: agent
+    expected: Same CI with a new identity, not a new shadow agent
+    action: Re-link by fingerprint (identification rank 4); require steward confirmation for production.
+  - id: SC-D05
+    group: D
+    title: Agent acts on behalf of a customer
+    situation: Customer chat agent performs a transfer for the logged-in customer.
+    signals: [customer session token, delegated token with act claim]
+    record_as: agent
+    expected: Delegation with sub = customer and act = agent; step-up authentication for money movement
+    action: Record consent and step-up evidence in provenance; risk override for customer-facing money movement.
+  - id: SC-D06
+    group: D
+    title: Cross-cloud identity federation
+    situation: A GCP agent calls AWS through workload identity federation.
+    signals: [federated principal in CloudTrail, GCP service account]
+    record_as: agent
+    expected: One CI with linked identities in both clouds
+    action: Join on the federation mapping; permissions are the union.
+  - id: SC-D07
+    group: D
+    title: Telemetry claims an agent key that the runtime identity contradicts
+    situation: Spans say agt-kyc-prod but come from a pod running as another identity.
+    signals: [agent key on span, mismatched SPIFFE ID or pod UID]
+    record_as: agent
+    expected: Impersonation or misconfiguration flag; spans quarantined from provenance
+    action: Investigate; never let a self-asserted key override attested identity (docs/21).
+  - id: SC-D08
+    group: D
+    title: Vendor-operated agent using a bank-issued integration user
+    situation: A SaaS agent reaches bank APIs through one integration account used for everything.
+    signals: [integration user activity, vendor IP ranges]
+    record_as: agent
+    expected: Identity level 0 if the account is shared beyond the agent
+    action: Dedicated credential per vendor agent; scope to the business flow.
+  - id: SC-D09
+    group: D
+    title: Agent holds a long-lived provider API key
+    situation: Code calls the LLM provider directly with a static key.
+    signals: [key in env or vault, egress to provider bypassing gateway]
+    record_as: agent
+    expected: Identity level 1 at best; not managed (gateway bypass)
+    action: Move to gateway virtual key; rotate and remove the provider key.
+
+  # ---------------------------------------------------------------- E
+  - id: SC-E01
+    group: E
+    title: Air-gapped segment with local models
+    situation: No internet egress; agents use on-prem model servers.
+    signals: [model servers inside segment, no egress logs]
+    record_as: agent
+    expected: Normal agents; discovery must run inside the segment
+    action: Deploy collectors (workload, eBPF, model-server scan) inside; ship observations out through an approved one-way path.
+  - id: SC-E02
+    group: E
+    title: Branch or edge servers
+    situation: Agents run on branch servers outside the central clusters.
+    signals: [endpoint management inventory, process lists]
+    record_as: agent
+    expected: Self-hosted agents found through endpoint or VM collectors
+    action: Extend package and process inventory to branch estates.
+  - id: SC-E03
+    group: E
+    title: Virtual desktops
+    situation: Endpoint agents run in shared VDI or Citrix sessions.
+    signals: [process per session, many users per host]
+    record_as: endpoint_agent
+    expected: Keyed by user, not host
+    action: Map sessions to users before counting.
+  - id: SC-E04
+    group: E
+    title: Unmanaged or personal devices
+    situation: Staff run agents on devices the bank does not manage.
+    signals: [OAuth grants, sign-ins from unmanaged devices, CASB]
+    record_as: endpoint_agent
+    expected: Mostly invisible; recorded as a coverage gap, not a count
+    action: Conditional access; block agent OAuth grants without approval.
+  - id: SC-E05
+    group: E
+    title: Subsidiary or acquired entity
+    situation: A newly acquired NBFC or fintech has its own cloud org and IdP.
+    signals: [new cloud orgs, separate IdP]
+    record_as: procedure
+    expected: Separate trust domain until integrated
+    action: Onboarding playbook with connectors and federation; separate KPIs until integrated.
+  - id: SC-E06
+    group: E
+    title: Overseas branch or GIFT City entity
+    situation: Agents serve jurisdictions such as Singapore, the EU or IFSC.
+    signals: [region, legal entity]
+    record_as: agent
+    expected: Jurisdiction attribute drives MAS, EU AI Act or local rules
+    action: Tag jurisdiction; keep inventory data residency aligned with local rules.
+  - id: SC-E07
+    group: E
+    title: Vendor-hosted agent processing bank data
+    situation: An outsourced provider runs an agent on its own infrastructure for the bank.
+    signals: [contract, data-sharing agreement, API traffic to vendor]
+    record_as: agent
+    expected: Governance record with zero CIs; third-party model rules apply
+    action: Contractual rights to documentation and audit; vendor attestation of model, tools and controls.
+  - id: SC-E08
+    group: E
+    title: Agents reaching core banking through middleware
+    situation: Agents call CBS through an ESB or API gateway; code is not visible.
+    signals: [API gateway or ESB consumer lists, new consumers]
+    record_as: agent
+    expected: Candidates found from middleware consumer lists
+    action: Treat every new consumer of CBS APIs as a candidate; reconcile with the CMDB.
+
+  # ---------------------------------------------------------------- F
+  - id: SC-F01
+    group: F
+    title: Private endpoints hide provider domains
+    situation: Bedrock, Azure OpenAI or Vertex reached through PrivateLink or Private Service Connect.
+    signals: [private DNS answers, no public egress, VPC endpoint traffic]
+    record_as: agent
+    expected: Egress detection misses it; cloud audit logs still record callers
+    action: Use CloudTrail, Azure diagnostics and GCP audit logs; restrict endpoint policies to registered agent roles.
+  - id: SC-F02
+    group: F
+    title: Aggregator or unfamiliar provider
+    situation: Calls go to OpenRouter or a new model provider.
+    signals: [egress to domains outside the known list, OpenAI-compatible payloads]
+    record_as: agent
+    expected: Shadow candidate
+    action: Keep knowledge/llm-endpoints.yaml current; detect OpenAI-compatible request shapes at the proxy.
+  - id: SC-F03
+    group: F
+    title: Traffic tunnelled through an allowed service
+    situation: LLM calls relayed through a personal proxy, VPN or allowed SaaS.
+    signals: [unusual payload sizes and timing, CASB anomalies]
+    record_as: agent
+    expected: Hard to see; behavioural detection only
+    action: TLS inspection where lawful; block unapproved tunnels; rely on endpoint and identity planes.
+  - id: SC-F04
+    group: F
+    title: GPU box under a desk
+    situation: Someone runs a local model server on unmanaged hardware.
+    signals: [model-server fingerprint, new device on NAC, GPU power draw]
+    record_as: infrastructure
+    expected: Shadow model server; its callers are shadow agents
+    action: Network scan and NAC; owner discovery; remove or onboard.
+  - id: SC-F05
+    group: F
+    title: Agent drives internal web apps through a browser
+    situation: Browser automation scrapes or clicks through internal apps instead of calling APIs.
+    signals: [human session at machine pace, headless browser user agents]
+    record_as: agent
+    expected: Identity level 0; not managed
+    action: Provide an API with agent identity; detect headless sessions in app logs.
+  - id: SC-F06
+    group: F
+    title: Gateway outage and fail-open
+    situation: The AI gateway is down and agents fall back to direct egress.
+    signals: [spike in direct egress, gateway health alerts]
+    record_as: procedure
+    expected: Gateway must fail closed for production agents
+    action: Alert on direct egress during outages; test fail-closed behaviour.
+  - id: SC-F07
+    group: F
+    title: Encrypted DNS hides lookups
+    situation: DNS over HTTPS bypasses resolver logs.
+    signals: [traffic to public DoH resolvers]
+    record_as: procedure
+    expected: DNS-based detection blind spot
+    action: Block DoH to unapproved resolvers; rely on egress proxy logs.
+
+  # ---------------------------------------------------------------- G
+  - id: SC-G01
+    group: G
+    title: Customer's personal AI agent uses net banking
+    situation: A customer gives an AI agent their login, or the agent drives their browser.
+    signals: [customer session with automation patterns, bot-management scores]
+    record_as: external_agent
+    expected: Inbound agent acting as the customer; not a bank agent
+    action: Bank policy decision; prefer a delegated, scoped API path over credential sharing; step-up for money movement.
+  - id: SC-G02
+    group: G
+    title: Third-party agent through open APIs or Account Aggregator
+    situation: A fintech's agent reads or initiates through consented APIs.
+    signals: [OAuth client of a registered partner, consent artefacts]
+    record_as: external_agent
+    expected: Counterparty in the external agent register
+    action: Record operator, client ID, consent scope and agent declaration; monitor behaviour per client.
+  - id: SC-G03
+    group: G
+    title: Agentic card payments
+    situation: Transactions initiated by agents via card-network agent programmes.
+    signals: [network agent indicators, agent tokens]
+    record_as: external_agent
+    expected: Agent provider recorded as counterparty for the transaction
+    action: Use network-provided agent signals in fraud and dispute handling; track standards (docs/20).
+  - id: SC-G04
+    group: G
+    title: UPI agentic payments
+    situation: AI agents making UPI payments for users under NPCI's proposed Unified Agent Protocol.
+    signals: [protocol not launched as of the research date]
+    record_as: external_agent
+    expected: Watch item; prepare fields for agent ID, mandate limits and accountable operator
+    action: Track NPCI circulars; design the external agent register so UPI agents fit without remodelling.
+  - id: SC-G05
+    group: G
+    title: Partner agent calling B2B APIs
+    situation: A corporate customer's treasury agent calls the bank's corporate APIs.
+    signals: [API client of a corporate customer, automated patterns]
+    record_as: external_agent
+    expected: Counterparty agent under the corporate's mandate
+    action: Agent flag on the API client; limits and approvals per corporate mandate.
+  - id: SC-G06
+    group: G
+    title: Bot pretending to be a known agent
+    situation: Traffic claims to be a well-known AI agent but is not.
+    signals: [user agent claims without valid signature]
+    record_as: external_agent
+    expected: Unverified; treat as untrusted automation
+    action: Verify signatures (Web Bot Auth style HTTP message signatures) before granting agent treatment.
+
+  # ---------------------------------------------------------------- H
+  - id: SC-H01
+    group: H
+    title: Provider retires or swaps a model
+    situation: A model version is deprecated and traffic moves to a new one.
+    signals: [gen_ai.response.model differs from approved model]
+    record_as: agent
+    expected: Drift detected
+    action: Re-validation per model-risk policy before the forced date; track deprecation calendars.
+  - id: SC-H02
+    group: H
+    title: MCP server adds tools at runtime
+    situation: The tool list returned by an MCP server changes without a redeploy.
+    signals: [new tool names in gateway MCP logs or tools/list results]
+    record_as: agent
+    expected: Observed-but-undeclared tools; drift
+    action: Pin allowed tool names per agent at the gateway; re-review new tools.
+  - id: SC-H03
+    group: H
+    title: Tool description changed after approval
+    situation: A tool's description or schema changes, possibly with injected instructions.
+    signals: [hash of tool definitions changed]
+    record_as: agent
+    expected: Supply-chain drift (ASI04)
+    action: Hash tool definitions at approval; block or review on change.
+  - id: SC-H04
+    group: H
+    title: System prompt changed
+    situation: Instructions edited in a config store without a release.
+    signals: [prompt hash change, config audit log]
+    record_as: agent
+    expected: Drift if material
+    action: Version prompts with the agent; review material changes.
+  - id: SC-H05
+    group: H
+    title: Knowledge base grows to include PII
+    situation: A previously internal index now includes customer documents.
+    signals: [classification of indexed sources changes]
+    record_as: agent
+    expected: Data-sensitivity drift; risk re-score
+    action: Re-score; DLP; owner confirmation.
+  - id: SC-H06
+    group: H
+    title: Agent permissions expanded
+    situation: The agent's role or identity gets new permissions.
+    signals: [IAM change events, new app role assignments]
+    record_as: agent
+    expected: Identity drift
+    action: Re-review; least-privilege check.
+  - id: SC-H07
+    group: H
+    title: Agent sharing widened
+    situation: A maker agent shared with one team is now shared tenant-wide.
+    signals: [sharing settings change in the platform]
+    record_as: agent
+    expected: Exposure drift
+    action: Re-score; approval for tenant-wide sharing.
+  - id: SC-H08
+    group: H
+    title: New input channel
+    situation: The agent now reads email or a public form.
+    signals: [new trigger or channel configuration]
+    record_as: agent
+    expected: Exposure drift; possible toxic combination
+    action: Re-score; guardrails on the new channel before go-live.
+
+  # ---------------------------------------------------------------- I
+  - id: SC-I01
+    group: I
+    title: Platform says active, no runtime evidence
+    situation: The record exists but nothing has run for weeks.
+    signals: [platform API record, no spans, no gateway traffic]
+    record_as: agent
+    expected: Dormant candidate unless standby or scheduled
+    action: Check SC-C04 and SC-C05 first; then confirm with owner.
+  - id: SC-I02
+    group: I
+    title: Runtime traffic but the platform record is gone
+    situation: The agent was deleted in the console but something still runs with its identity.
+    signals: [runtime evidence, missing platform record]
+    record_as: agent
+    expected: Shadow, high priority
+    action: Contain and revoke; investigate who runs it.
+  - id: SC-I03
+    group: I
+    title: Sources disagree on the owner
+    situation: The governance record and the cloud tags name different owners.
+    signals: [conflicting owner attributes]
+    record_as: agent
+    expected: Governance record wins
+    action: Steward task to reconcile; update tags.
+  - id: SC-I04
+    group: I
+    title: Same name in two places
+    situation: Two unrelated agents share a name.
+    signals: [name match only]
+    record_as: agent
+    expected: Never auto-merge (identification rank 6)
+    action: Candidate merge for steward review only.
+  - id: SC-I05
+    group: I
+    title: Collector outage
+    situation: A collector stops reporting for a day.
+    signals: [collector heartbeat missing]
+    record_as: procedure
+    expected: Missing evidence is not evidence of dormancy
+    action: Track evidence freshness per plane; pause dormancy and shadow rules that depend on the missing plane.
+  - id: SC-I06
+    group: I
+    title: Clock skew and late events
+    situation: Events arrive out of order from different sources.
+    signals: [timestamps outside tolerance]
+    record_as: procedure
+    expected: Order by source timestamp with tolerance
+    action: Idempotent merges; never flip status on a single late event.
+  - id: SC-I07
+    group: I
+    title: Security or test tooling calls LLMs
+    situation: Red-team harnesses, evaluators or the inventory itself call models.
+    signals: [known tooling identities]
+    record_as: agent
+    expected: Recorded as test tooling with an owner, not shadow
+    action: Register and allow-list by identity; exclude from shadow counts.
+  - id: SC-I08
+    group: I
+    title: Framework pulled in as a transitive dependency
+    situation: An unrelated library depends on an agent framework.
+    signals: [package in lockfile only, no agent constructs]
+    record_as: not_agent
+    expected: Not an agent
+    action: Require constructs or runtime evidence, not imports alone.
+
+  # ---------------------------------------------------------------- J
+  - id: SC-J01
+    group: J
+    title: Half-yearly inventory snapshot
+    situation: FREE-AI style half-yearly inventory as of a reporting date.
+    signals: [reporting calendar]
+    record_as: procedure
+    expected: Point-in-time query over CI history
+    action: Keep full CI history; export with the fields each regulator asks for.
+  - id: SC-J02
+    group: J
+    title: Which agents touched this loan file
+    situation: Auditor asks for every agent and person involved in a decision.
+    signals: [case ID]
+    record_as: procedure
+    expected: Provenance query joined to CMDB state at that time
+    action: Query PROV graph by entity; resolve agent versions as of the event time.
+  - id: SC-J03
+    group: J
+    title: Suspend every agent using a model or tool
+    situation: A model or MCP server is found unsafe.
+    signals: [incident ticket]
+    record_as: procedure
+    expected: Graph query returns all affected agents
+    action: Fan out kill switches; revoke gateway keys; track completion.
+  - id: SC-J04
+    group: J
+    title: Regulator asks for retired agents
+    situation: Request covers agents retired in past years.
+    signals: [regulator request]
+    record_as: procedure
+    expected: Answered from retained records
+    action: See SC-C12.
+  - id: SC-J05
+    group: J
+    title: Customer complaint about an AI decision
+    situation: A customer disputes a decision made or assisted by an agent.
+    signals: [grievance ticket, conversation ID]
+    record_as: procedure
+    expected: Trace, disclosure evidence and human-handoff record available
+    action: Pull provenance by conversation ID; record outcome against the agent.
+  - id: SC-J06
+    group: J
+    title: Tool vendor breach
+    situation: An MCP server or tool vendor reports a compromise.
+    signals: [vendor advisory]
+    record_as: procedure
+    expected: All agents using the vendor's tools found in minutes
+    action: Graph query on tool vendor; revoke tokens; rotate credentials held by the tool.
+  - id: SC-J07
+    group: J
+    title: Validation overdue
+    situation: An agent's model validation or risk review is past due.
+    signals: [next_review date passed]
+    record_as: procedure
+    expected: Not compliant with use-only-if-approved
+    action: Escalate; for high or critical tiers, restrict at the gateway until reviewed.
+
+  # ---------------------------------------------------------------- K
+  - id: SC-K01
+    group: K
+    title: Client cannot change code on day one
+    situation: Application teams will not import an SDK for months.
+    signals: [no OTel in dependencies, release freeze]
+    record_as: procedure
+    expected: Telemetry from tiers 0 to 2 only (docs/23)
+    action: Gateway routing, platform-native telemetry, audit logs and CDC first; OBI or Operator injection next.
+  - id: SC-K02
+    group: K
+    title: Vendor SaaS agent is a black box
+    situation: No access to the agent's runtime or code.
+    signals: [SaaS platform agent]
+    record_as: procedure
+    expected: Platform-native export where offered, plus gateway logs of calls into the bank
+    action: Enable the platform's telemetry export; record lineage edges as stitched, not observed.
+  - id: SC-K03
+    group: K
+    title: Encrypted HTTP/2 between services
+    situation: Service-to-service traffic uses TLS HTTP/2 and apps do not forward trace headers.
+    signals: [broken traces at a hop, TLS everywhere]
+    record_as: procedure
+    expected: eBPF cannot inject context into encrypted HTTP/2
+    action: Use Operator injection (library-level, before encryption) or stitch by business key.
+  - id: SC-K04
+    group: K
+    title: Core banking or mainframe with no tracing
+    situation: CBS calls disappear into a system that emits no spans.
+    signals: [ESB or API gateway edge spans only]
+    record_as: procedure
+    expected: Lineage through edge spans, DB audit or CDC, and transaction references
+    action: Capture at the ESB or API gateway; enable CDC on agent-written tables; stitch by tokenised UTR or account plus timestamp.
+  - id: SC-K05
+    group: K
+    title: Asynchronous hops through Kafka or MQ
+    situation: An agent publishes work that another service consumes later.
+    signals: [producer and consumer spans with different trace IDs]
+    record_as: procedure
+    expected: Context in message headers when clients are instrumented; otherwise business key
+    action: Instrument messaging clients via Operator; use case ID as message key as fallback.
+  - id: SC-K06
+    group: K
+    title: Privileged eBPF not allowed
+    situation: Hardened OpenShift or security policy forbids privileged DaemonSets.
+    signals: [SCC or policy denial]
+    record_as: procedure
+    expected: No OBI; Go auto-instrumentation also needs privileges
+    action: Use gateway, platform telemetry and Operator injection for non-Go runtimes; agree an exception for critical flows.
+  - id: SC-K07
+    group: K
+    title: PII in captured payloads
+    situation: Prompts, responses or tool arguments contain customer data.
+    signals: [content capture enabled somewhere]
+    record_as: procedure
+    expected: Content capture off by default at every layer
+    action: Redact and tokenise in the Collector; restrict who can enable content capture; align retention with DPDP.
+  - id: SC-K08
+    group: K
+    title: Telemetry volume and cost
+    situation: Full tracing of every agent is too expensive.
+    signals: [collector or backend cost alerts]
+    record_as: procedure
+    expected: Sampling by risk
+    action: Sample low-risk flows at the Collector; keep complete traces for regulated flows and critical-tier agents.
+  - id: SC-K09
+    group: K
+    title: Spans arrive without an agent key
+    situation: Auto-instrumented apps do not know their agent_uid.
+    signals: [GenAI spans with pod or gateway attributes but no bank.agent.uid]
+    record_as: procedure
+    expected: Collector enrichment from CMDB lookup
+    action: Map gateway key, deployment or runtime identity to agent_uid in the Collector; unmatched spans become shadow candidates.
+  - id: SC-K10
+    group: K
+    title: Legacy language or stored procedures
+    situation: Agent actions land in COBOL programs or PL/SQL with no instrumentation path.
+    signals: [no supported runtime]
+    record_as: procedure
+    expected: Data-level lineage only
+    action: DB audit or CDC plus business keys; mark edges as data lineage.
+  - id: SC-K11
+    group: K
+    title: Telemetry must stay in the bank
+    situation: Policy forbids sending traces to a SaaS backend.
+    signals: [data residency requirement]
+    record_as: procedure
+    expected: All collection and storage on bank infrastructure
+    action: Self-hosted Collector and backends; disable vendor upload options in collectors and operators.
+  - id: SC-K12
+    group: K
+    title: Endpoint agents produce no traces
+    situation: IDE assistants and agentic browsers run on laptops.
+    signals: [EDR inventory only]
+    record_as: procedure
+    expected: Inventory and egress evidence, not traces
+    action: Use EDR discovery and gateway or proxy logs; do not expect provenance-grade traces from endpoints.
+

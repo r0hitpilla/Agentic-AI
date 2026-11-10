@@ -93,4 +93,4 @@ flowchart LR
 Measure detection rate and time-to-detect per seed; any miss shows which collector or rule needs work.
 
 ---
-[← 12 KPIs](12-kpis.md) · [Index](README.md) · [References →](references.md)
+[← 12 KPIs](12-kpis.md) · [Index](README.md) · [Next: 14 Agent profile →](14-agent-profile.md)
