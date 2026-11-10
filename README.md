@@ -202,11 +202,17 @@ flowchart LR
 | 16 | [Repository scanning](docs/16-repository-scanning.md) | Repo and image pipeline, detectors, AI-BOM, "uses an LLM" vs "is an agent" |
 | 17 | [Tools landscape](docs/17-tools-landscape.md) | Native, commercial and open-source tools, and the gaps they leave |
 | 18 | [Risk scoring](docs/18-risk-scoring.md) | Formula, override rules, tiers, worked example |
-| 19 | [Scenario catalogue](docs/19-scenarios.md) | 99 situations across eleven angles, each with evidence, record type and action |
+| 19 | [Scenario catalogue](docs/19-scenarios.md) | 99 situations across eleven angles, each with evidence, record type and action; 58 run as tests |
 | 20 | [External agents](docs/20-external-agents.md) | Customer, partner and payment-network agents reaching the bank |
 | 21 | [Threat model of the inventory](docs/21-inventory-threat-model.md) | Securing the inventory itself; using it as an enforcement control |
 | 22 | [Change watchlist](docs/22-change-watchlist.md) | What moved in 2026, what is still draft, how the software copes |
 | 23 | [Telemetry without code changes](docs/23-telemetry-without-code-changes.md) | Capture ladder from gateways and eBPF to operator injection; stitching lineage when trace context breaks |
+| 24 | [Deployment model](docs/24-deployment-model.md) | Single-tenant inside each bank, RBI IT outsourcing, credentials, security-review pack |
+| 25 | [Engine contracts](docs/25-engine-contracts.md) | Collector observation format, reconciliation steps, inventory API, reference engine |
+| 26 | [Operating model](docs/26-operating-model.md) | Lifecycle from request to retirement, RACI, SLAs, exceptions |
+| 27 | [Business-key provenance](docs/27-business-key-provenance.md) | Tokenised UTRs, application and claim numbers join lineage per flow |
+| 28 | [AI systems and integrations](docs/28-ai-systems-and-integrations.md) | Non-agent AI register, SIEM/ITSM/GRC outputs, cost per agent, extra platforms |
+| 29 | [Implementability scorecard](docs/29-implementability-scorecard.md) | Honest scores per part, what raised them, what a pilot must prove |
 | — | [References](docs/references.md) | Sources behind every claim |
 
 ---
@@ -218,19 +224,22 @@ The docs explain the reasoning; the files below are what the software loads. Rul
 ```mermaid
 flowchart LR
     K["knowledge/*.yaml<br/>signatures · endpoints · connectors ·<br/>rules · risk model · scenarios ·<br/>telemetry capture"] --> E["Inventory engine"]
-    S["schemas/agent-record.schema.json"] --> E
+    S["schemas/*.json<br/>agent · AI system · external agent ·<br/>observation"] --> E
     E --> R[("Agent CMDB records")]
-    X["examples/*.yaml"] -.->|"test fixtures"| E
-    SC["knowledge/scenarios.yaml"] -.->|"one test per scenario"| E
+    A["api/inventory-api.openapi.yaml"] --> E
+    REF["engine/classifier.py<br/>reference implementation"] -.->|"same rules"| E
+    T["tests/<br/>58 scenario cases + schema,<br/>example and API checks"] -.-> REF
 ```
 
 | Path | What it is |
 |---|---|
-| [`knowledge/`](knowledge/README.md) | Detection signatures, LLM endpoints and model-server fingerprints, platform connectors, classification rules, risk model, scenario catalogue, telemetry capture methods |
-| [`schemas/agent-record.schema.json`](schemas/agent-record.schema.json) | JSON Schema for one agent record; managed records must have an approved owner, a runtime identity and gateway traffic |
-| [`examples/kyc-onboarding-agent.yaml`](examples/kyc-onboarding-agent.yaml) | A managed, critical-tier agent |
-| [`examples/shadow-loan-agent.yaml`](examples/shadow-loan-agent.yaml) | A shadow agent as first discovered |
-| [`scripts/render_scenarios.py`](scripts/render_scenarios.py) | Regenerates the scenario tables in docs/19 from the YAML |
+| [`knowledge/`](knowledge/README.md) | Detection signatures, LLM endpoints and model-server fingerprints, platform connectors, classification rules, risk model, scenario catalogue, telemetry capture methods, business keys |
+| [`schemas/`](schemas/agent-record.schema.json) | JSON Schemas: agent record (managed records must have an approved owner, a runtime identity and gateway traffic), AI system, external agent, collector observation |
+| [`api/inventory-api.openapi.yaml`](api/inventory-api.openapi.yaml) | OpenAPI 3.1 contract for the inventory API |
+| [`engine/classifier.py`](engine/classifier.py) | Reference classifier that executes the rules and risk model, returning rule IDs for every decision |
+| [`tests/`](tests/test_engine.py) | 58 executable scenario cases plus schema, example, OpenAPI and generated-doc checks (`python3 -m pytest -q`) |
+| [`examples/`](examples/kyc-onboarding-agent.yaml) | Managed agent, shadow agent, AI system, external agent, collector observation |
+| [`scripts/validate.sh`](scripts/validate.sh) | Runs every check, including the Mermaid parse of all diagrams |
 
 ---
 
@@ -264,6 +273,12 @@ flowchart LR
 │   ├── 21-inventory-threat-model.md
 │   ├── 22-change-watchlist.md
 │   ├── 23-telemetry-without-code-changes.md
+│   ├── 24-deployment-model.md
+│   ├── 25-engine-contracts.md
+│   ├── 26-operating-model.md
+│   ├── 27-business-key-provenance.md
+│   ├── 28-ai-systems-and-integrations.md
+│   ├── 29-implementability-scorecard.md
 │   └── references.md
 ├── knowledge/                     ← machine-readable rules and facts
 │   ├── README.md
@@ -273,15 +288,35 @@ flowchart LR
 │   ├── classification-rules.yaml
 │   ├── risk-model.yaml
 │   ├── scenarios.yaml
-│   └── telemetry-capture.yaml
+│   ├── telemetry-capture.yaml
+│   └── business-keys.yaml
 ├── schemas/
-│   └── agent-record.schema.json
+│   ├── agent-record.schema.json
+│   ├── ai-system.schema.json
+│   ├── external-agent.schema.json
+│   └── observation.schema.json
+├── api/
+│   └── inventory-api.openapi.yaml
+├── engine/                        ← reference classifier
+│   ├── __init__.py
+│   └── classifier.py
+├── tests/
+│   ├── scenario_cases.yaml
+│   └── test_engine.py
 ├── examples/
 │   ├── kyc-onboarding-agent.yaml
-│   └── shadow-loan-agent.yaml
-└── scripts/
-    └── render_scenarios.py
+│   ├── shadow-loan-agent.yaml
+│   ├── ai-system-faq-chatbot.yaml
+│   ├── external-agent-partner.yaml
+│   └── observation-ebpf-llm-call.yaml
+├── scripts/
+│   ├── render_scenarios.py
+│   ├── validate.sh
+│   └── mermaid-check/
+└── requirements-dev.txt
 ```
+
+Run every check: `scripts/validate.sh` (or `python3 -m pytest -q` for the Python checks only).
 
 ---
 
@@ -291,4 +326,5 @@ flowchart LR
 - Vendor capabilities (ServiceNow, Okta, AWS, Microsoft, open-source scanners) come from documentation and announcements, **not hands-on validation**. Prove each in a pilot with seeded test agents.
 - OpenTelemetry defines `gen_ai.agent.id` only on some agent spans, so the agent key also travels as a resource attribute ([docs/09](docs/09-telemetry-provenance.md)).
 - RBI's draft model-risk guidance is summarised from secondary sources where the draft text was not reachable; confirm details against the draft itself.
+- Implementability is about 7.5/10 as a design ([docs/29](docs/29-implementability-scorecard.md)); the rest has to be proven in a pilot with a real bank.
 - See [docs/13-open-questions.md](docs/13-open-questions.md) and [docs/22-change-watchlist.md](docs/22-change-watchlist.md).

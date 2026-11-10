@@ -1,0 +1,254 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/r0hitpilla/agentic-ai/schemas/observation.schema.json",
+  "title": "Collector observation",
+  "description": "One piece of evidence a collector publishes to the bus. The reconciliation engine merges observations into agent records (docs/25). Observations are untrusted input until reconciled (docs/21).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "observation_id",
+    "schema_version",
+    "tenant_id",
+    "observed_at",
+    "collector",
+    "subject"
+  ],
+  "properties": {
+    "observation_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "tenant_id": {
+      "type": "string",
+      "description": "Bank legal entity the observation belongs to (docs/24)."
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "collector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version",
+        "plane"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "plane": {
+          "type": "string",
+          "enum": [
+            "platform_api",
+            "identity",
+            "runtime",
+            "code",
+            "network",
+            "endpoint",
+            "telemetry",
+            "data"
+          ]
+        },
+        "connector_id": {
+          "type": "string",
+          "description": "ID from knowledge/platform-connectors.yaml"
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "platform": {
+          "type": "string"
+        },
+        "account": {
+          "type": "string"
+        },
+        "region": {
+          "type": "string"
+        },
+        "api": {
+          "type": "string"
+        },
+        "api_version": {
+          "type": "string"
+        },
+        "raw_ref": {
+          "type": "string",
+          "description": "Pointer to the raw record in bank storage; never the raw payload"
+        }
+      }
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "keys"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "agent",
+            "endpoint_agent",
+            "ai_system",
+            "model_server",
+            "mcp_server",
+            "gateway",
+            "identity",
+            "workload",
+            "external_agent",
+            "code_artifact"
+          ]
+        },
+        "environment": {
+          "type": "string",
+          "enum": [
+            "dev",
+            "test",
+            "uat",
+            "prod",
+            "unknown"
+          ]
+        },
+        "keys": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "description": "Identification keys, strongest first (docs/07 ranks 1-6).",
+          "properties": {
+            "platform_native_id": {
+              "type": "string"
+            },
+            "runtime_identity": {
+              "type": "string"
+            },
+            "gateway_credential": {
+              "type": "string"
+            },
+            "workload_fingerprint": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "cluster": {
+                  "type": "string"
+                },
+                "namespace": {
+                  "type": "string"
+                },
+                "deployment": {
+                  "type": "string"
+                },
+                "image_digest": {
+                  "type": "string"
+                },
+                "host": {
+                  "type": "string"
+                },
+                "process_path": {
+                  "type": "string"
+                }
+              }
+            },
+            "code_location": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "repo": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "agent_name": {
+                  "type": "string"
+                }
+              }
+            },
+            "name": {
+              "type": "string"
+            },
+            "agent_key_claimed": {
+              "type": "string",
+              "description": "Self-asserted agent key from telemetry; never trusted alone"
+            }
+          }
+        }
+      }
+    },
+    "facts": {
+      "type": "object",
+      "description": "Engine evidence keys (engine/classifier.py DEFAULTS) plus profile hints such as models, tools, data_sources, owner_hint, identity.",
+      "properties": {
+        "calls_llm": {
+          "type": "boolean"
+        },
+        "model_selects_tools": {
+          "type": "boolean"
+        },
+        "writes_without_human_review": {
+          "type": "boolean"
+        },
+        "runs_on_user_device": {
+          "type": "boolean"
+        },
+        "operator": {
+          "type": "string"
+        },
+        "last_seen": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "call_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "models": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "tool_hashes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "data_sources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "owner_hint": {
+          "type": "string"
+        },
+        "identity": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": true
+    },
+    "signature": {
+      "type": "string",
+      "description": "Collector signature over the observation (docs/21 T4, T8)."
+    }
+  }
+}

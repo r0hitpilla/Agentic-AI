@@ -169,6 +169,8 @@ databricks api get /api/2.1/unity-catalog/agent-services
 | Snowflake | A monitoring role granted MONITOR on agents plus usage on parent databases and schemas |
 | Kubernetes | ClusterRole with `get`/`list` on `agents.kagent.dev`, pods, deployments, service accounts (no `secrets` read) |
 
+Platforms not listed here (OpenShift AI with Llama Stack, NVIDIA NeMo Agent Toolkit, private and sovereign clouds, mobile apps) are covered in [28](28-ai-systems-and-integrations.md).
+
 These read-only credentials together can see every agent, model and permission in the bank. Treat the connector identities as crown jewels ([21](21-inventory-threat-model.md)).
 
 ## Gotchas the connectors must handle

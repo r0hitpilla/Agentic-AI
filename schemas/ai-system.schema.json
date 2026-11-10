@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/r0hitpilla/agentic-ai/schemas/ai-system.schema.json",
+  "title": "AI system record (not an agent)",
+  "description": "Chatbots, RAG apps, ML models, LLM features and vendor-embedded AI that need inventorying but not the agent profile (docs/28).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "ai_system_id",
+    "name",
+    "kind",
+    "purpose",
+    "owner",
+    "lifecycle",
+    "risk_tier"
+  ],
+  "properties": {
+    "ai_system_id": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "chatbot",
+        "rag_app",
+        "llm_feature",
+        "ml_model",
+        "vendor_embedded_ai",
+        "decision_engine"
+      ]
+    },
+    "purpose": {
+      "type": "string"
+    },
+    "owner": {
+      "type": "object",
+      "required": [
+        "business_owner"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "business_owner": {
+          "type": "string"
+        },
+        "technical_owner": {
+          "type": "string"
+        },
+        "developer": {
+          "type": "string"
+        },
+        "validator": {
+          "type": "string"
+        },
+        "approver": {
+          "type": "string"
+        }
+      }
+    },
+    "operator": {
+      "type": "string",
+      "enum": [
+        "bank",
+        "vendor_on_behalf_of_bank"
+      ]
+    },
+    "vendor": {
+      "type": "string"
+    },
+    "models": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "data_sources": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "target_groups": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "customer_facing": {
+      "type": "boolean"
+    },
+    "business_flows": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "linked_agents": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "agent_uids that use this system"
+    },
+    "mrm_model_id": {
+      "type": "string",
+      "description": "ID in the bank's existing model-risk tool"
+    },
+    "risk_tier": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ]
+    },
+    "validation_status": {
+      "type": "string",
+      "enum": [
+        "not_started",
+        "in_progress",
+        "validated",
+        "overdue",
+        "exception"
+      ]
+    },
+    "lifecycle": {
+      "type": "string",
+      "enum": [
+        "development",
+        "testing",
+        "production",
+        "inactive",
+        "retired"
+      ]
+    },
+    "regulatory_tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "grievances_ref": {
+      "type": "string"
+    },
+    "retain_until": {
+      "type": "string",
+      "format": "date"
+    }
+  }
+}

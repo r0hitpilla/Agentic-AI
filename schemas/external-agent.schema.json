@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/r0hitpilla/agentic-ai/schemas/external-agent.schema.json",
+  "title": "External agent register entry",
+  "description": "An agent operated by a customer, partner, merchant or payment network that reaches bank systems (docs/20).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "external_agent_id",
+    "operator",
+    "verification",
+    "trust_level"
+  ],
+  "properties": {
+    "external_agent_id": {
+      "type": "string"
+    },
+    "operator": {
+      "type": "object",
+      "required": [
+        "legal_name",
+        "kind"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "legal_name": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "customer",
+            "partner",
+            "merchant",
+            "network",
+            "unknown"
+          ]
+        },
+        "contact": {
+          "type": "string"
+        }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "required": [
+        "method"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": [
+            "http_message_signature",
+            "oauth_client",
+            "network_credential",
+            "mtls",
+            "none"
+          ]
+        },
+        "key_directory_url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "client_id": {
+          "type": "string"
+        },
+        "last_verified": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "declaration": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "As claimed by the agent; never trusted alone",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "purpose": {
+          "type": "string"
+        }
+      }
+    },
+    "mandate": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "customer_ref": {
+          "type": "string",
+          "description": "Tokenised"
+        },
+        "scopes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "limits": {
+          "type": "object"
+        },
+        "expires": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "consent_ref": {
+          "type": "string"
+        }
+      }
+    },
+    "channels": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "apis": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "trust_level": {
+      "type": "string",
+      "enum": [
+        "verified",
+        "unverified",
+        "credential_sharing",
+        "blocked"
+      ]
+    },
+    "incidents": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

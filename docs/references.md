@@ -77,6 +77,8 @@ mindmap
 - [Serving endpoints: list](https://docs.databricks.com/api/workspace/servingendpoints/list) — Databricks REST reference
 - [SHOW AGENTS](https://docs.snowflake.com/en/sql-reference/sql/show-agents) — Snowflake SQL reference
 - [Agents (kagent concepts)](https://kagent.dev/docs/kagent/concepts/agents/) — kagent docs
+- [Building enterprise-ready AI agents with Red Hat OpenShift AI](https://www.redhat.com/en/blog/building-enterprise-ready-ai-agents-streamlined-development-red-hat-openshift-ai) — Red Hat, May 2025
+- [nvidia-nat-opentelemetry](https://pypi.org/project/nvidia-nat-opentelemetry/1.5.0a20260110/) — NVIDIA NeMo Agent Toolkit OpenTelemetry package, PyPI
 - [Pegasystems expands agentic AI for business automation](https://www.techtarget.com/searchcustomerexperience/news/366625157/Pegasystems-expands-agentic-AI-for-business-automation) — TechTarget, June 2025
 
 ## Protocols
@@ -94,6 +96,10 @@ mindmap
 - [Ant International, Visa and Mastercard agree on agent identity standard](https://forkast.news/ant-international-visa-and-mastercard-agree-on-agent-identity-standard-now-comes-the-hard-part/) — Forkast, September 2026
 - [India plans AI-powered UPI payments framework through Unified Agent Protocol](https://www.outlookbusiness.com/news/india-plans-ai-powered-upi-payments-framework-through-unified-agent-protocol) — Outlook Business, 9 July 2026
 - [UPI AI agent plans raise fraud challenges](https://paymentexpert.com/2026/09/03/upi-ai-agent-plans-fraud-challenges/) — Payment Expert, 3 September 2026
+
+## Business keys
+
+- [Understanding UTR numbers: formats for NEFT, RTGS and UPI](https://www.winvesta.in/blog/businesses/understanding-utr-numbers-formats-for-neft-rtgs-and-upi) — Winvesta (typical formats; confirm per bank)
 
 ## Code and AI-BOM
 
@@ -150,7 +156,8 @@ mindmap
 - [A human firmly in the loop: RBI proposes kill switch for AI](https://theprint.in/tech/a-human-firmly-in-the-loop-rbi-proposes-kill-switch-for-ai-used-by-banks-nbfcs/2970201/) — ThePrint, June 2026 (secondary summary)
 - [India's DPDP Act: phased rollout and key compliance milestones](https://www.azbpartners.com/bank/indias-digital-personal-data-protection-act-phased-rollout-and-key-compliance-milestones/) — AZB & Partners, November 2025
 - [CERT-In's Technical Guidelines on SBOM, QBOM & CBOM, AIBOM and HBOM](https://www.azbpartners.com/bank/cert-ins-technical-guidelines-on-sbom-qbom-and-cbom-aibom-and-hbom/) — AZB & Partners, September 2025
+- [RBI releases Master Direction to regulate outsourcing of IT services](https://khaitanco.com/thought-leaderships/RBI-Releases-Master-Direction-To-Regulate-Outsourcing-of-IT-Services) — Khaitan & Co, April 2023
 - [DORA RTS Article 4: ICT asset management policy](https://advisera.com/cdr-2024-1774/ict-asset-management-policy/) — Advisera (full text of CDR 2024/1774)
 
 ---
-[← 23 Telemetry without code changes](23-telemetry-without-code-changes.md) · [Index](README.md) · [Repo README](../README.md)
+[← 29 Implementability scorecard](29-implementability-scorecard.md) · [Index](README.md) · [Repo README](../README.md)

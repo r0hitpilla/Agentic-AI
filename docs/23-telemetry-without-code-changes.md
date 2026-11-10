@@ -171,4 +171,4 @@ Durations are illustrative; the order is what matters.
 The machine-readable version of this ladder is [`knowledge/telemetry-capture.yaml`](../knowledge/telemetry-capture.yaml); related scenarios are group K in [19](19-scenarios.md).
 
 ---
-[← 22 Change watchlist](22-change-watchlist.md) · [Index](README.md) · [References →](references.md)
+[← 22 Change watchlist](22-change-watchlist.md) · [Index](README.md) · [Next: 24 Deployment model →](24-deployment-model.md)

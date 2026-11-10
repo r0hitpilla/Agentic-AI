@@ -1,0 +1,280 @@
+# Executable test cases for knowledge/scenarios.yaml.
+# Each case feeds evidence to engine.Classifier and checks the expected outputs.
+# Keys under "expect" are compared only if present.
+# Evidence keys and defaults: engine/classifier.py DEFAULTS; docs/25-engine-contracts.md.
+
+managed_baseline: &managed
+  registered: true
+  approved: true
+  active_owner: true
+  runtime_identity_matches: true
+  via_gateway: true
+  minimum_profile_complete: true
+  code_found: true
+  days_since_runtime: 0
+
+cases:
+  # ------------------------------------------------------------ A: what counts
+  SC-A01:
+    evidence: {calls_llm: true, kind: llm_app}
+    expect: {record_type: ai_system}
+  SC-A02:
+    evidence: {calls_llm: true, kind: llm_app}
+    expect: {record_type: ai_system}
+  SC-A03:
+    evidence: {calls_llm: true, writes_without_human_review: true}
+    expect: {record_type: agent}
+  SC-A04:
+    evidence:
+      calls_llm: true
+      model_selects_tools: true
+      identity: {shared: true}
+    expect: {record_type: agent, identity_level: 0}
+  SC-A05:
+    evidence: {operator: vendor_on_behalf_of_bank, calls_llm: true}
+    expect: {record_type: ai_system}
+  SC-A06:
+    evidence: {operator: vendor_on_behalf_of_bank, model_selects_tools: true, platform_api_found: true, days_since_runtime: 1}
+    expect: {record_type: agent, managed_status: unmanaged}
+  SC-A07:
+    evidence:
+      runs_on_user_device: true
+      model_selects_tools: true
+      identity: {principal_is_human: true}
+    expect: {record_type: endpoint_agent, identity_level: 0}
+  SC-A08:
+    evidence:
+      model_selects_tools: true
+      risk: {capabilities: [code_execution], exposure: [tenant_internal], data: [internal]}
+    expect: {record_type: agent}
+  SC-A09:
+    evidence:
+      runs_on_user_device: true
+      model_selects_tools: true
+      days_since_runtime: 0
+      identity: {principal_is_human: true}
+    expect: {record_type: endpoint_agent, managed_status: shadow, identity_level: 0}
+  SC-A10:
+    evidence: {kind: mcp_server}
+    expect: {record_type: infrastructure}
+  SC-A11:
+    evidence: {kind: model_server}
+    expect: {record_type: infrastructure}
+  SC-A12:
+    evidence: {model_selects_tools: true, code_found: true, days_since_runtime: 2}
+    expect: {record_type: agent, managed_status: shadow, managed_subtype: null}
+  SC-A13:
+    evidence: {personal_consumer_ai_usage: true, calls_llm: true}
+    expect: {record_type: not_agent}
+  SC-A14:
+    evidence:
+      <<: *managed
+      model_selects_tools: true
+      identity: {delegation_tokens: true, access_review_recent: true}
+      risk:
+        capabilities: [money_movement]
+        exposure: [customer_facing]
+        data: [account]
+        controls: [human_in_the_loop_before_write, guardrails_in_and_out]
+    expect: {record_type: agent, managed_status: managed, risk_tier: critical, toxic_combination: true}
+
+  # ------------------------------------------------------------ B: topology
+  SC-B01:
+    evidence: {model_selects_tools: true}
+    expect: {record_type: agent}
+  SC-B05:
+    merge: {rank: 4, same_environment: false}
+    expect: {merge: no_merge}
+  SC-B07:
+    evidence: {kind: mcp_server}
+    expect: {record_type: infrastructure}
+
+  # ------------------------------------------------------------ C: lifecycle
+  SC-C02:
+    merge: {rank: 4, same_environment: true}
+    expect: {merge: auto_merge}
+  SC-C04:
+    evidence: {model_selects_tools: true, registered: true, approved: true, standby: true}
+    expect: {managed_status: standby}
+  SC-C05:
+    evidence:
+      <<: *managed
+      model_selects_tools: true
+      days_since_runtime: 40
+      schedule_period_days: 90
+    expect: {managed_status: managed}
+  SC-C07:
+    merge: {rank: 6}
+    expect: {merge: steward_review}
+  SC-C08:
+    evidence: {model_selects_tools: true, registered: true, approved: true, days_since_runtime: 45, code_found: true, credentials_live: true}
+    expect: {managed_status: dormant, managed_subtype: zombie}
+  SC-C09:
+    evidence:
+      <<: *managed
+      model_selects_tools: true
+      active_owner: false
+    expect: {managed_status: unmanaged, identity_level: 1}
+  SC-C12:
+    evidence: {model_selects_tools: true, registered: true, retired_confirmed: true}
+    expect: {managed_status: retired}
+
+  # ------------------------------------------------------------ D: identity
+  SC-D01:
+    evidence:
+      <<: *managed
+      model_selects_tools: true
+      identity: {principal_is_human: true}
+      risk: {capabilities: [internal_write], exposure: [tenant_internal], data: [pii], controls: [active_named_owner]}
+    expect: {identity_level: 0, risk_tier: high}
+  SC-D02:
+    evidence:
+      model_selects_tools: true
+      identity: {shared: true}
+    expect: {identity_level: 0}
+  SC-D03:
+    evidence:
+      model_selects_tools: true
+      active_owner: true
+      identity: {static_secret: true}
+    expect: {identity_level: 1}
+  SC-D04:
+    merge: {rank: 4, same_environment: true}
+    expect: {merge: auto_merge}
+  SC-D05:
+    evidence:
+      <<: *managed
+      model_selects_tools: true
+      identity: {delegation_tokens: true, access_review_recent: true}
+      risk:
+        capabilities: [money_movement]
+        exposure: [customer_facing]
+        data: [account]
+        controls: [human_in_the_loop_before_write, guardrails_in_and_out, identity_level_2_or_3]
+    expect: {identity_level: 3, risk_tier: critical}
+  SC-D07:
+    span: {agent_key_present: true, agent_key_known: true, identity_matches: false}
+    expect: {span: quarantine_and_flag_impersonation}
+  SC-D08:
+    evidence:
+      operator: vendor_on_behalf_of_bank
+      model_selects_tools: true
+      identity: {shared: true}
+    expect: {record_type: agent, identity_level: 0}
+  SC-D09:
+    evidence:
+      <<: *managed
+      model_selects_tools: true
+      via_gateway: false
+      identity: {static_secret: true, idp_record: false}
+    expect: {managed_status: unmanaged, identity_level: 1}
+
+  # ------------------------------------------------------------ E: location
+  SC-E03:
+    evidence: {runs_on_user_device: true, model_selects_tools: true}
+    expect: {record_type: endpoint_agent}
+  SC-E04:
+    evidence: {runs_on_user_device: true, model_selects_tools: true}
+    expect: {record_type: endpoint_agent}
+  SC-E07:
+    evidence: {operator: vendor_on_behalf_of_bank, model_selects_tools: true, registered: true, approved: true, active_owner: true}
+    expect: {record_type: agent, managed_status: declared}
+
+  # ------------------------------------------------------------ F: network
+  SC-F01:
+    evidence: {model_selects_tools: true, days_since_runtime: 0, code_found: true}
+    expect: {managed_status: shadow}
+  SC-F04:
+    evidence: {kind: model_server}
+    expect: {record_type: infrastructure}
+  SC-F05:
+    evidence:
+      model_selects_tools: true
+      identity: {principal_is_human: true}
+    expect: {identity_level: 0}
+
+  # ------------------------------------------------------------ G: external
+  SC-G01:
+    evidence: {operator: customer, model_selects_tools: true}
+    expect: {record_type: external_agent}
+  SC-G02:
+    evidence: {operator: partner, model_selects_tools: true}
+    expect: {record_type: external_agent}
+  SC-G03:
+    evidence: {operator: network}
+    expect: {record_type: external_agent}
+  SC-G05:
+    evidence: {operator: partner}
+    expect: {record_type: external_agent}
+
+  # ------------------------------------------------------------ H: drift
+  SC-H01:
+    drift:
+      previous: {served_model: bank-llm-2026-05}
+      current: {served_model: bank-llm-2026-08}
+    expect: {drift: [model_served_changed]}
+  SC-H02:
+    drift:
+      previous: {tools: [ckyc_lookup]}
+      current: {tools: [ckyc_lookup, send_email]}
+    expect: {drift: [tool_added_or_removed]}
+  SC-H03:
+    drift:
+      previous: {tool_hashes: {ckyc_lookup: aa11}}
+      current: {tool_hashes: {ckyc_lookup: bb22}}
+    expect: {drift: [tool_definition_hash_changed]}
+  SC-H04:
+    drift:
+      previous: {prompt_hash: p1}
+      current: {prompt_hash: p2}
+    expect: {drift: [system_prompt_hash_changed]}
+  SC-H05:
+    drift:
+      previous: {data_sources: [policy-kb], data_classification: internal}
+      current: {data_sources: [policy-kb, customer-docs], data_classification: pii}
+    expect: {drift: [data_source_added, data_classification_raised]}
+  SC-H06:
+    drift:
+      previous: {permissions_hash: r1}
+      current: {permissions_hash: r2}
+    expect: {drift: [identity_or_permissions_changed]}
+  SC-H07:
+    drift:
+      previous: {sharing: single_team}
+      current: {sharing: tenant_internal}
+    expect: {drift: [sharing_scope_widened]}
+  SC-H08:
+    drift:
+      previous: {channels: [branch-console]}
+      current: {channels: [branch-console, email]}
+    expect: {drift: [new_channel_or_caller]}
+
+  # ------------------------------------------------------------ I: evidence
+  SC-I01:
+    evidence: {model_selects_tools: true, registered: true, approved: true, active_owner: true, platform_api_found: true, days_since_runtime: 60, code_found: true}
+    expect: {managed_status: dormant}
+  SC-I02:
+    evidence: {model_selects_tools: true, days_since_runtime: 0, code_found: false}
+    expect: {managed_status: shadow, managed_subtype: ghost}
+  SC-I03:
+    source_of_truth: owner
+    expect: {source_of_truth: governance_record}
+  SC-I04:
+    merge: {rank: 6}
+    expect: {merge: steward_review}
+  SC-I05:
+    evidence: {model_selects_tools: true, registered: true, collector_health_ok: false, previous_status: managed}
+    expect: {managed_status: managed}
+  SC-I07:
+    evidence:
+      <<: *managed
+      model_selects_tools: true
+    expect: {managed_status: managed}
+  SC-I08:
+    evidence: {code_found: true}
+    expect: {record_type: not_agent}
+
+  # ------------------------------------------------------------ K: telemetry
+  SC-K09:
+    span: {agent_key_present: false, collector_enrichment_found: true, identity_matches: true, genai_operation: true}
+    expect: {span: accept_into_provenance}

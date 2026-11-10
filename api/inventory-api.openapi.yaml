@@ -1,0 +1,235 @@
+openapi: 3.1.0
+info:
+  title: Agent Inventory API
+  version: 0.1.0
+  description: |
+    API of the agent CMDB (docs/25-engine-contracts.md). Deployed inside each bank (docs/24).
+    All reads accept `as_of` so regulatory snapshots and audits can see the inventory as it stood
+    on a past date. Write and action endpoints need separate scopes and are audited (docs/21).
+servers:
+  - url: https://agent-inventory.bank.internal/api/v1
+security:
+  - oauth2: [inventory.read]
+tags:
+  - name: agents
+  - name: governance
+  - name: ingest
+  - name: reporting
+  - name: control
+  - name: registers
+paths:
+  /agents:
+    get:
+      tags: [agents]
+      summary: List agent records with filters
+      parameters:
+        - {name: managed_status, in: query, schema: {$ref: '#/components/schemas/ManagedStatus'}}
+        - {name: identity_level, in: query, schema: {type: integer, minimum: 0, maximum: 3}}
+        - {name: platform, in: query, schema: {type: string}}
+        - {name: environment, in: query, schema: {type: string}}
+        - {name: business_flow, in: query, schema: {type: string}}
+        - {name: risk_tier, in: query, schema: {type: string, enum: [low, medium, high, critical]}}
+        - $ref: '#/components/parameters/AsOf'
+        - {name: page_token, in: query, schema: {type: string}}
+      responses:
+        '200':
+          description: Page of agent records
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: {type: array, items: {$ref: '#/components/schemas/AgentRecord'}}
+                  next_page_token: {type: string}
+  /agents/{agent_uid}:
+    get:
+      tags: [agents]
+      summary: Get one agent record
+      parameters:
+        - $ref: '#/components/parameters/AgentUid'
+        - $ref: '#/components/parameters/AsOf'
+      responses:
+        '200': {description: Agent record, content: {application/json: {schema: {$ref: '#/components/schemas/AgentRecord'}}}}
+        '404': {description: Not found}
+  /agents/{agent_uid}/history:
+    get:
+      tags: [agents]
+      summary: Append-only change history with the rule IDs behind each classification change
+      parameters: [{$ref: '#/components/parameters/AgentUid'}]
+      responses:
+        '200':
+          description: History entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    at: {type: string, format: date-time}
+                    field: {type: string}
+                    old: {}
+                    new: {}
+                    rules: {type: array, items: {type: string}}
+                    actor: {type: string}
+  /agents/{agent_uid}/graph:
+    get:
+      tags: [agents]
+      summary: Relationship edges (RUNS_AS, USES_MODEL, CALLS_TOOL, READS, WRITES, DELEGATES_TO, OWNED_BY, SUPPORTS)
+      parameters:
+        - $ref: '#/components/parameters/AgentUid'
+        - {name: depth, in: query, schema: {type: integer, minimum: 1, maximum: 3, default: 1}}
+      responses:
+        '200':
+          description: Graph fragment
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  nodes: {type: array, items: {type: object}}
+                  edges: {type: array, items: {type: object, properties: {from: {type: string}, to: {type: string}, type: {type: string}, evidence: {type: string}, confidence: {type: string}}}}
+  /agents/{agent_uid}/governance:
+    patch:
+      tags: [governance]
+      summary: Steward actions on the governance record (approve, assign owner, set risk tier, retire)
+      security: [{oauth2: [inventory.govern]}]
+      parameters: [{$ref: '#/components/parameters/AgentUid'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action, justification]
+              properties:
+                action: {type: string, enum: [approve, reject, assign_owner, set_risk_tier, suspend, retire, grant_exception]}
+                value: {}
+                justification: {type: string}
+      responses:
+        '202': {description: Accepted; second approver required for approve and grant_exception (four-eyes)}
+  /observations:
+    post:
+      tags: [ingest]
+      summary: Ingest collector observations over HTTP (the event bus is the primary path)
+      security: [{mtls: []}, {oauth2: [inventory.ingest]}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              maxItems: 1000
+              items: {$ref: '../schemas/observation.schema.json'}
+      responses:
+        '202': {description: Queued for reconciliation}
+        '400': {description: Schema validation failed}
+  /tree:
+    get:
+      tags: [reporting]
+      summary: Counts for the inventory tree (governance state x identity level), with filters
+      parameters:
+        - $ref: '#/components/parameters/AsOf'
+        - {name: business_flow, in: query, schema: {type: string}}
+      responses:
+        '200': {description: Tree counts, content: {application/json: {schema: {type: object}}}}
+  /kpis:
+    get:
+      tags: [reporting]
+      summary: KPI values (docs/12)
+      parameters: [{$ref: '#/components/parameters/AsOf'}]
+      responses:
+        '200': {description: KPI values, content: {application/json: {schema: {type: object}}}}
+  /snapshots:
+    post:
+      tags: [reporting]
+      summary: Create a signed regulatory snapshot (e.g. half-yearly FREE-AI inventory)
+      security: [{oauth2: [inventory.report]}]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [as_of, profile]
+              properties:
+                as_of: {type: string, format: date}
+                profile: {type: string, enum: [rbi_free_ai, rbi_mrm, mas_airm, dora_ict, internal]}
+      responses:
+        '201': {description: Snapshot created; returns ID and signature}
+  /provenance/entities/{entity_ref}:
+    get:
+      tags: [reporting]
+      summary: Agents, people and systems that touched a business entity (loan file, case, transaction)
+      parameters:
+        - {name: entity_ref, in: path, required: true, schema: {type: string}, description: Tokenised business key (docs/27)}
+      responses:
+        '200': {description: Provenance chain with edge evidence types and confidence}
+  /gateway/allowlist:
+    get:
+      tags: [control]
+      summary: Agent keys allowed at the AI gateway, with permitted models and tools per tier (docs/21)
+      security: [{mtls: []}]
+      responses:
+        '200': {description: Signed allow-list; gateways cache it and fail static}
+  /agents/{agent_uid}/kill-switch:
+    post:
+      tags: [control]
+      summary: Suspend an agent (revoke gateway key, disable platform agent, scale to zero)
+      security: [{oauth2: [inventory.kill]}]
+      parameters: [{$ref: '#/components/parameters/AgentUid'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: {type: string}
+                incident_ref: {type: string}
+      responses:
+        '202': {description: Suspension started; completion tracked per mechanism}
+  /ai-systems:
+    get:
+      tags: [registers]
+      summary: List non-agent AI systems
+      responses:
+        '200': {description: AI system records, content: {application/json: {schema: {type: array, items: {$ref: '../schemas/ai-system.schema.json'}}}}}
+  /external-agents:
+    get:
+      tags: [registers]
+      summary: List external agent register entries
+      responses:
+        '200': {description: External agents, content: {application/json: {schema: {type: array, items: {$ref: '../schemas/external-agent.schema.json'}}}}}
+components:
+  parameters:
+    AgentUid:
+      name: agent_uid
+      in: path
+      required: true
+      schema: {type: string}
+    AsOf:
+      name: as_of
+      in: query
+      description: Return state as of this timestamp (point-in-time view)
+      schema: {type: string, format: date-time}
+  schemas:
+    ManagedStatus:
+      type: string
+      enum: [managed, unmanaged, shadow, dormant, declared, standby, retired]
+    AgentRecord:
+      $ref: '../schemas/agent-record.schema.json'
+  securitySchemes:
+    oauth2:
+      type: oauth2
+      flows:
+        clientCredentials:
+          tokenUrl: https://idp.bank.internal/oauth2/token
+          scopes:
+            inventory.read: Read inventory
+            inventory.govern: Steward governance actions
+            inventory.ingest: Submit observations
+            inventory.report: Create regulatory snapshots
+            inventory.kill: Trigger kill switches
+    mtls:
+      type: mutualTLS

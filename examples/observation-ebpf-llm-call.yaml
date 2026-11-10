@@ -1,0 +1,32 @@
+# Example collector observation: an eBPF collector sees a pod calling an LLM provider.
+# This is the first evidence for the shadow agent in shadow-loan-agent.yaml.
+$schema_name: observation.schema.json
+observation_id: 6b0f1c2e-8a4d-4c55-9b0e-3f2a1d7c9e10
+schema_version: 1
+tenant_id: bank-in-001
+observed_at: "2026-11-08T10:41:00Z"
+collector:
+  id: obi-ds-ocp-prod-1
+  version: 1.0.0
+  plane: runtime
+source:
+  platform: openshift
+  account: ocp-prod-mumbai
+  region: dc-mumbai-1
+  raw_ref: s3://bank-telemetry-raw/obi/2026/11/08/evt-77d1
+subject:
+  kind: workload
+  environment: prod
+  keys:
+    workload_fingerprint:
+      cluster: ocp-prod-mumbai
+      namespace: lending
+      deployment: lending-docs-assistant
+      image_digest: sha256:41c8e2d0b7a95f3e1d6c4b2a0f9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2f10
+    runtime_identity: system:serviceaccount:lending:default
+facts:
+  calls_llm: true
+  last_seen: "2026-11-08T10:41:00Z"
+  call_count: 42
+  models: [unknown]
+  operator: bank

@@ -13,6 +13,8 @@ flowchart LR
     RS --> TL["17 Tools"] --> RK["18 Risk<br/>scoring"] --> SC["19 Scenarios"]
     SC --> EX["20 External<br/>agents"] --> TM["21 Threat<br/>model"] --> CW["22 Change<br/>watchlist"]
     CW --> TC["23 Telemetry without<br/>code changes"]
+    TC --> DM["24 Deployment<br/>model"] --> EC["25 Engine<br/>contracts"] --> OM["26 Operating<br/>model"]
+    OM --> BK["27 Business-key<br/>provenance"] --> AS["28 AI systems and<br/>integrations"] --> SCR["29 Implementability<br/>scorecard"]
 
 ```
 
@@ -36,11 +38,17 @@ flowchart LR
 | 16 | [Repository scanning](16-repository-scanning.md) | Code finds agents before they run |
 | 17 | [Tools landscape](17-tools-landscape.md) | What each tool sees, and the gaps |
 | 18 | [Risk scoring](18-risk-scoring.md) | Score, overrides, tiers |
-| 19 | [Scenario catalogue](19-scenarios.md) | 99 situations, generated from `knowledge/scenarios.yaml` |
+| 19 | [Scenario catalogue](19-scenarios.md) | 99 situations, 58 with executable tests; generated from `knowledge/scenarios.yaml` |
 | 20 | [External agents](20-external-agents.md) | Agents the bank does not own but must recognise |
 | 21 | [Threat model of the inventory](21-inventory-threat-model.md) | The inventory is a target and a control |
 | 22 | [Change watchlist](22-change-watchlist.md) | What will move under the software |
 | 23 | [Telemetry without code changes](23-telemetry-without-code-changes.md) | Capture first, SDK last; stitch lineage by business keys |
+| 24 | [Deployment model](24-deployment-model.md) | Single-tenant inside each bank; RBI outsourcing; security-review pack |
+| 25 | [Engine contracts](25-engine-contracts.md) | Observation format, reconciliation steps, API, reference engine |
+| 26 | [Operating model](26-operating-model.md) | Lifecycle, RACI, SLAs, retirement, exceptions |
+| 27 | [Business-key provenance](27-business-key-provenance.md) | Tokenised keys join lineage for each flow |
+| 28 | [AI systems and integrations](28-ai-systems-and-integrations.md) | Non-agent AI register, SIEM/ITSM/GRC, cost, extra platforms |
+| 29 | [Implementability scorecard](29-implementability-scorecard.md) | Honest scores, what raised them, what a pilot must prove |
 | — | [References](references.md) | Sources |
 | — | [Knowledge base](../knowledge/README.md) | Machine-readable rules the software loads |
 

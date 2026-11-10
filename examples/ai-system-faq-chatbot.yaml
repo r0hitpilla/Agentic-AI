@@ -1,0 +1,22 @@
+# Example AI system record (not an agent): a website FAQ chatbot with no tools (scenario SC-A01).
+$schema_name: ai-system.schema.json
+ai_system_id: ais-web-faq-bot
+name: Website FAQ assistant
+kind: chatbot
+purpose: Answer product and branch questions on the public website; no account access.
+owner:
+  business_owner: Head of Digital Channels
+  technical_owner: Web Platform Lead
+operator: bank
+models: [bank-llm-small]
+data_sources: [public-product-faq]
+target_groups: [prospective customers, existing customers]
+customer_facing: true
+business_flows: []
+dependencies: [ai-gateway, cms]
+linked_agents: []
+risk_tier: medium
+validation_status: validated
+lifecycle: production
+regulatory_tags: [rbi_free_ai]
+grievances_ref: grievance-queue/digital

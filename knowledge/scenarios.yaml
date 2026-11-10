@@ -132,7 +132,7 @@ scenarios:
     situation: Data scientists build agents in Jupyter, SageMaker Studio or Databricks notebooks.
     signals: [notebook kernels with agent frameworks, workspace audit logs]
     record_as: agent
-    expected: Declared or dev-stage; not managed production
+    expected: Shadow in a development environment; low priority unless it touches production data
     action: Record as dev; flag immediately if it reads production customer data or calls production APIs.
   - id: SC-A13
     group: A
@@ -347,7 +347,7 @@ scenarios:
     signals: [new identity, same workload fingerprint and image]
     record_as: agent
     expected: Same CI with a new identity, not a new shadow agent
-    action: Re-link by fingerprint (identification rank 4); require steward confirmation for production.
+    action: Re-link automatically by workload fingerprint within the same environment (identification rank 4) and notify the steward; re-run identity onboarding.
   - id: SC-D05
     group: D
     title: Agent acts on behalf of a customer

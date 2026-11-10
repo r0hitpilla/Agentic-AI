@@ -1,0 +1,25 @@
+# Example external agent register entry: a fintech partner's agent using consented APIs (scenario SC-G02).
+$schema_name: external-agent.schema.json
+external_agent_id: ext-partner-budgetbuddy-01
+operator:
+  legal_name: Example Fintech Pvt Ltd (fictional)
+  kind: partner
+  contact: api-security@example-fintech.invalid
+verification:
+  method: oauth_client
+  client_id: partner-budgetbuddy-prod
+  last_verified: "2026-11-10T04:00:00Z"
+declaration:
+  name: BudgetBuddy assistant
+  version: "3.2"
+  purpose: Read balances and transactions to give spending insights
+mandate:
+  customer_ref: tok_9f3a1c
+  scopes: [accounts:read, transactions:read]
+  limits: {requests_per_day: 200}
+  expires: "2027-05-10T00:00:00Z"
+  consent_ref: consent-aa-55e1
+channels: [open-api]
+apis: [/v1/accounts, /v1/transactions]
+trust_level: verified
+incidents: []

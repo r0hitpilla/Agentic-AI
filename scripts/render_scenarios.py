@@ -11,6 +11,7 @@ import yaml
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SRC = ROOT / "knowledge" / "scenarios.yaml"
+CASES = ROOT / "tests" / "scenario_cases.yaml"
 DOC = ROOT / "docs" / "19-scenarios.md"
 BEGIN = "<!-- BEGIN GENERATED: scenarios -->"
 END = "<!-- END GENERATED: scenarios -->"
@@ -30,13 +31,16 @@ def cell(text):
     return str(text).replace("|", "\\|").replace("\n", " ").strip()
 
 
-def render(data):
+def render(data, tested):
     out = []
     by_group = {}
     for sc in data["scenarios"]:
         by_group.setdefault(sc["group"], []).append(sc)
     total = len(data["scenarios"])
-    out.append(f"{total} scenarios in {len(data['groups'])} groups.\n")
+    n_tested = sum(1 for sc in data["scenarios"] if sc["id"] in tested)
+    out.append(f"{total} scenarios in {len(data['groups'])} groups. "
+               f"{n_tested} have executable test cases in `tests/scenario_cases.yaml` (marked ✓); "
+               "the rest are procedures or need an environment to test.\n")
     for g in data["groups"]:
         rows = by_group.get(g["id"], [])
         out.append(f"## {g['id']} · {g['name']}\n")
@@ -45,8 +49,9 @@ def render(data):
         for sc in rows:
             signals = "; ".join(sc["signals"])
             record = RECORD_LABELS[sc["record_as"]]
+            mark = " ✓" if sc["id"] in tested else ""
             out.append(
-                f"| {sc['id']} | **{cell(sc['title'])}**. {cell(sc['situation'])} "
+                f"| {sc['id']}{mark} | **{cell(sc['title'])}**. {cell(sc['situation'])} "
                 f"| {cell(signals)} | **{record}**: {cell(sc['expected'])} | {cell(sc['action'])} |"
             )
         out.append("")
@@ -55,10 +60,11 @@ def render(data):
 
 def main():
     data = yaml.safe_load(SRC.read_text())
+    tested = set((yaml.safe_load(CASES.read_text()) or {}).get("cases", {})) if CASES.exists() else set()
     doc = DOC.read_text()
     head, rest = doc.split(BEGIN, 1)
     _, tail = rest.split(END, 1)
-    new = head + BEGIN + "\n" + render(data) + "\n" + END + tail
+    new = head + BEGIN + "\n" + render(data, tested) + "\n" + END + tail
     if "--check" in sys.argv:
         if new != doc:
             print("docs/19-scenarios.md is stale; run scripts/render_scenarios.py")

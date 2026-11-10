@@ -1,0 +1,10 @@
+{
+  "name": "mermaid-check",
+  "private": true,
+  "type": "module",
+  "description": "Parse every Mermaid block in the repo's Markdown with the real Mermaid parser",
+  "dependencies": {
+    "jsdom": "^31.0.0",
+    "mermaid": "^11.17.2"
+  }
+}

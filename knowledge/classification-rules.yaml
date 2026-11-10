@@ -39,7 +39,10 @@ source_of_truth:                 # docs/07
   status_last_seen: runtime
   version: platform_api_or_image_digest
 
-record_type:                     # docs/19 decision 1
+record_type:                     # docs/19 decision 1; first match wins
+  - id: RT-0
+    when: personal_consumer_ai_usage AND NOT acts_on_bank_systems
+    then: not_agent                # SC-A13: usage risk, not a CI
   - id: RT-1
     when: operator in [customer, partner, merchant, network]
     then: external_agent
@@ -56,43 +59,50 @@ record_type:                     # docs/19 decision 1
     when: calls_llm
     then: ai_system
   - id: RT-6
-    when: imports_only_without_constructs_or_runtime
+    when: default                  # e.g. framework import with no constructs or runtime (SC-I08)
     then: not_agent
 
-managed_status:                  # docs/05; evaluated for agent and endpoint_agent records
+managed_status:                  # docs/05; for agent and endpoint_agent records; first match wins
+  # runtime_recent = runtime seen within dormancy threshold
+  # dormancy threshold = max(dormancy_days, schedule_period_days + schedule_grace_days)
   - id: MS-1
     when: retired_confirmed
     then: retired
   - id: MS-2
-    when: standby_flag
+    when: standby
     then: standby
   - id: MS-3
-    when: NOT collector_health_ok_for_required_planes
+    when: NOT collector_health_ok
     then: keep_previous            # SC-I05: missing evidence is not dormancy
   - id: MS-4
-    when: NOT registered AND runtime_seen AND NOT code_found
+    when: platform_api_found AND NOT (registered AND active_owner)
+    then: unmanaged                # known to a platform, not governed
+  - id: MS-5
+    when: NOT registered AND runtime_recent AND NOT code_found
     then: shadow
     subtype: ghost
-  - id: MS-5
-    when: NOT registered AND runtime_seen
-    then: shadow
   - id: MS-6
-    when: platform_api_found AND (NOT governance_record OR NOT active_owner)
-    then: unmanaged
+    when: NOT registered AND runtime_recent
+    then: shadow
   - id: MS-7
-    when: no_runtime_for > dormancy_threshold
+    when: NOT runtime_recent AND (runtime_ever_seen OR code_found)
     then: dormant
     subtype: zombie_if_credentials_live
   - id: MS-8
-    when: approved_record AND runtime_identity == registered_identity AND traffic_via_gateway AND minimum_profile_complete
-    then: managed
+    when: NOT runtime_recent
+    then: declared                 # governance record only
   - id: MS-9
-    when: approved_record
-    then: unmanaged
-    reason: approved but fails identity, gateway or profile checks
+    when: approved AND active_owner AND runtime_identity_matches AND via_gateway AND minimum_profile_complete
+    then: managed
   - id: MS-10
-    when: registered AND NOT runtime_seen AND NOT code_found
-    then: declared
+    when: default
+    then: unmanaged                # registered but fails approval, owner, identity, gateway or profile checks
+
+merge_decision:                   # docs/07 identification ranks
+  - {when: "rank in [1, 2, 3]", then: auto_merge}
+  - {when: "rank == 4 AND same_environment", then: auto_merge}
+  - {when: "rank == 4 AND NOT same_environment", then: no_merge}
+  - {when: "rank in [5, 6]", then: steward_review}
 
 identity_level:                  # docs/06
   runtime_override: human principal observed on agent calls forces level 0
@@ -122,7 +132,10 @@ drift_triggers:                  # docs/07, docs/19 group H
   - new_channel_or_caller
   - owner_left
 
-span_acceptance:                 # docs/09, docs/21 T3
+span_acceptance:                 # docs/09, docs/21 T3, docs/23; first match wins
+  - id: SP-0
+    when: agent_key_missing AND collector_enrichment_found
+    then: stamp_key_from_cmdb_and_continue   # SC-K09; enrichment is derived from attested facts
   - id: SP-1
     when: agent_key_missing AND genai_operation_present
     then: shadow_candidate

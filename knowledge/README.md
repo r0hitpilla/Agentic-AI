@@ -12,6 +12,7 @@ flowchart LR
         RM["risk-model.yaml<br/>how risky"]
         SC["scenarios.yaml<br/>situations and answers"]
         TC["telemetry-capture.yaml<br/>how to collect without code"]
+        BK["business-keys.yaml<br/>how to stitch lineage"]
     end
 
     PC --> COL["Connectors"]
@@ -25,6 +26,9 @@ flowchart LR
     RM --> RISK
     SC --> TEST["Regression tests:<br/>each scenario is a test case"]
     TC --> OTC["Bank OTel Collector<br/>and capture rollout"]
+    BK --> OTC
+    CR --> ENGREF["engine/classifier.py<br/>reference implementation"]
+    RM --> ENGREF
     TEST -.-> REC
 ```
 
@@ -37,11 +41,12 @@ flowchart LR
 | [`risk-model.yaml`](risk-model.yaml) | Risk scoring | [18 Risk scoring](../docs/18-risk-scoring.md) |
 | [`scenarios.yaml`](scenarios.yaml) | Test suite, steward playbooks, docs generator | [19 Scenario catalogue](../docs/19-scenarios.md) |
 | [`telemetry-capture.yaml`](telemetry-capture.yaml) | Collector enrichment, client onboarding, lineage stitching | [23 Telemetry without code changes](../docs/23-telemetry-without-code-changes.md) |
+| [`business-keys.yaml`](business-keys.yaml) | Collector tokenisation, provenance stitching | [27 Business-key provenance](../docs/27-business-key-provenance.md) |
 
 ## Rules for using these files
 
 1. **Deterministic first.** `classification-rules.yaml` decides status, identity level and record type. If an LLM helps (for example to summarise an unfamiliar repo), its output is a suggestion that these rules must confirm. Discovery inputs such as tool descriptions and agent cards are untrusted data ([21](../docs/21-inventory-threat-model.md)).
-2. **Every scenario is a test.** Build a fixture for each `SC-*` entry (seeded evidence → expected record type and status) and run them on every rule change.
+2. **Every scenario is a test.** [`tests/scenario_cases.yaml`](../tests/scenario_cases.yaml) holds evidence → expected outcome for 58 scenarios, run against the reference engine [`engine/classifier.py`](../engine/classifier.py) with `python3 -m pytest -q`. Add a case whenever a rule changes.
 3. **Version and review.** Each file has `version` and `last_reviewed`. Re-check against [22 Change watchlist](../docs/22-change-watchlist.md) at least quarterly.
 4. **Confidence travels with facts.** Connector entries carry `confidence` (documented, secondary, unverified); treat anything below *documented* as needing a pilot check.
 5. **Statuses beyond the four in the tree.** Rules also produce `standby` (disaster-recovery copies), `retired` (kept for retention) and `declared` (record only); see the schema enum.

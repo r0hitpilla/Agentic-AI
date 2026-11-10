@@ -1,0 +1,119 @@
+# Business keys that already travel through bank flows. Used to stitch provenance when
+# trace context breaks (docs/23, docs/27). Formats are typical, not guaranteed: confirm per bank.
+#
+# handling:
+#   tokenise   - replace with HMAC(bank-held key, value) before telemetry or the provenance graph;
+#                the same value tokenises the same way everywhere, so stitching still works
+#   never_store - must not appear in telemetry at all; use a reference token instead
+#   plain      - low sensitivity, may be stored as is
+
+version: 1
+last_reviewed: 2026-11-10
+
+tokenisation:
+  method: HMAC-SHA256 with a bank-held key in the bank's HSM or KMS
+  rotation: re-key yearly; keep old key IDs to join historical edges
+  note: Deterministic tokens allow joins without exposing values; never use plain hashes of low-entropy IDs.
+
+keys:
+  - id: conversation_id
+    flows: [all]
+    format: UUID or channel-specific
+    appears_in: [gateway headers, chat platform logs, gen_ai.conversation.id]
+    handling: plain
+    stitch_confidence: medium_high
+  - id: case_id
+    flows: [account_opening, loan_sanction, claims]
+    format: bank-specific workflow or BPM case number
+    appears_in: [workflow engine, URL paths, message keys]
+    handling: tokenise
+    stitch_confidence: high
+  - id: application_number
+    flows: [account_opening, loan_sanction]
+    format: bank-specific
+    appears_in: [LOS, onboarding portal, API paths]
+    handling: tokenise
+    stitch_confidence: high
+  - id: customer_id
+    flows: [all]
+    format: CIF number, bank-specific
+    appears_in: [CBS, CRM, API bodies]
+    handling: tokenise
+    stitch_confidence: high
+  - id: account_number
+    flows: [account_opening, transfers, loan_sanction]
+    format: bank-specific
+    appears_in: [CBS, payment messages]
+    handling: tokenise
+    stitch_confidence: high
+  - id: ckyc_number
+    flows: [account_opening]
+    format: 14-digit KYC Identification Number (verify against CERSAI specification)
+    appears_in: [KYC store, CKYC lookups]
+    handling: tokenise
+    stitch_confidence: high
+  - id: aadhaar_number
+    flows: [account_opening]
+    format: 12 digits
+    appears_in: [eKYC requests]
+    handling: never_store
+    note: Use the reference token from the bank's Aadhaar data vault, never the number.
+  - id: pan
+    flows: [account_opening, loan_sanction]
+    format: 10 characters
+    appears_in: [KYC, bureau requests]
+    handling: tokenise
+  - id: neft_utr
+    flows: [transfers]
+    format: 16 characters (typical)
+    appears_in: [payment hub, CBS, NEFT messages]
+    handling: tokenise
+    stitch_confidence: high
+  - id: rtgs_utr
+    flows: [transfers]
+    format: 22 characters (typical)
+    appears_in: [payment hub, CBS, RTGS messages]
+    handling: tokenise
+    stitch_confidence: high
+  - id: imps_or_upi_rrn
+    flows: [transfers]
+    format: 12-digit RRN (typical); UPI transaction IDs vary
+    appears_in: [switch logs, CBS, PSP callbacks]
+    handling: tokenise
+    stitch_confidence: high
+  - id: loan_account_number
+    flows: [loan_sanction]
+    format: bank-specific
+    appears_in: [LOS, CBS loan module]
+    handling: tokenise
+    stitch_confidence: high
+  - id: bureau_enquiry_ref
+    flows: [loan_sanction]
+    format: bureau-specific control or enquiry number
+    appears_in: [bureau responses, LOS]
+    handling: tokenise
+    stitch_confidence: medium_high
+  - id: sanction_reference
+    flows: [loan_sanction]
+    format: bank-specific sanction letter or approval number
+    appears_in: [LOS, document management]
+    handling: tokenise
+    stitch_confidence: high
+  - id: claim_number
+    flows: [claims]
+    format: bank- or insurer-specific
+    appears_in: [claims system, document management, insurer APIs]
+    handling: tokenise
+    stitch_confidence: high
+  - id: document_id
+    flows: [account_opening, loan_sanction, claims]
+    format: DMS object ID
+    appears_in: [document management, retrieval spans]
+    handling: plain
+    stitch_confidence: medium
+
+flows:
+  account_opening: {primary_keys: [application_number, case_id], join_to_core: [customer_id, account_number], kyc: [ckyc_number]}
+  transfers: {primary_keys: [neft_utr, rtgs_utr, imps_or_upi_rrn], join_to_core: [account_number]}
+  loan_sanction: {primary_keys: [application_number, case_id], join_to_core: [loan_account_number, customer_id], external: [bureau_enquiry_ref], decision: [sanction_reference]}
+  claims: {primary_keys: [claim_number, case_id], join_to_core: [account_number, customer_id]}

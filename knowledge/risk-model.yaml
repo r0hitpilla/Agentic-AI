@@ -29,6 +29,11 @@ factors:
     card: 1.0
     credit: 1.0
 
+untrusted_exposures:       # exposures that count as untrusted input for RO-1
+  - customer_facing
+  - public_internet
+  - email_web_or_ticket_input
+
 control_coverage:          # sum of credits, capped at max_coverage
   max_coverage: 0.9
   credits:
