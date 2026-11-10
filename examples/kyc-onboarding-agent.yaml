@@ -1,0 +1,104 @@
+# Example agent deployment record: the KYC onboarding agent in PROD.
+# Validates against ../schemas/agent-record.schema.json.
+# All names, IDs and hosts are fictional.
+
+agent_uid: agt-kyc-prod
+
+external_ids:
+  spiffe_id: spiffe://bank.internal/agent/kyc-onboarding/prod
+  k8s_uid: 6f1c2a9e-3b7d-4f0a-9c5e-1d2b3a4c5d6e
+  gateway_key: vk-agt-kyc-prod
+
+definition:
+  definition_id: def-kyc-onboarding
+  name: KYC onboarding agent
+  purpose: Collect and verify customer KYC documents during account opening, then create the customer record in core banking.
+  framework: langgraph
+  framework_version: "0.4"
+  autonomy: human_in_the_loop
+
+governance:
+  record_id: gov-kyc-onboarding
+  approval_status: approved
+  risk_tier: high
+  regulatory_tags: [rbi_free_ai, rbi_mrm]
+  owner:
+    business_owner: Head of Retail Onboarding
+    technical_owner: Digital Onboarding Platform Lead
+    team: digital-onboarding
+    cost_centre: CC-RET-0420
+  business_flows: [account_opening]
+  approved_on: "2026-09-15"
+  next_review: "2027-03-15"
+
+deployment:
+  platform: openshift
+  hosting: self_hosted
+  environment: prod
+  region: dc-mumbai-1
+  version: 2.4.1
+  image_digest: sha256:9f2b7c1e4a6d8f0b3c5e7a9d1f3b5c7e9a1d3f5b7c9e1a3d5f7b9c1e3a5d7f9b
+  code_repo: git.bank.internal/onboarding/kyc-agent
+  first_seen: "2026-09-20T06:12:00Z"
+  last_seen: "2026-11-10T05:58:41Z"
+
+identity:
+  identity_id: spiffe://bank.internal/agent/kyc-onboarding/prod
+  type: spiffe
+  issuer: spire.bank.internal
+  credential_type: x509_svid
+  shared_with_other_agents: false
+  delegation: token_exchange_on_behalf_of
+  last_access_review: "2026-10-01"
+  last_used: "2026-11-10T05:58:41Z"
+
+classification:
+  managed_status: managed
+  identity_level: 3
+  identity_onboarded: true
+  on_gateway: true
+  confidence: 100
+  evidence_planes: [platform_api, identity, runtime, code]
+  drift_open: false
+
+models:
+  - model_id: bank-llm-large
+    provider: internal
+    version: "2026-08"
+    hosting: self_hosted
+    source: both
+
+tools:
+  - tool_id: mcp-ckyc-lookup
+    kind: mcp
+    endpoint: https://mcp.bank.internal/ckyc
+    access: read
+    source: both
+  - tool_id: api-cbs-create-customer
+    kind: rest
+    endpoint: https://cbs-api.bank.internal/v1/customers
+    access: write
+    source: both
+
+data_sources:
+  - source_id: kyc-store
+    system: KYC store
+    classification: [pii]
+    access: read_write
+  - source_id: kyc-policy-kb
+    system: vector DB
+    classification: [internal]
+    access: read
+  - source_id: cbs-customer-master
+    system: CBS
+    classification: [pii, account]
+    access: write
+
+delegates_to: [agt-sanctions-screening-prod]
+channels: [branch-console, mobile-onboarding]
+guardrails: [gw-pii-redaction, gw-prompt-injection-filter]
+
+telemetry:
+  emits_gen_ai_agent_id: true
+  otel_service_name: kyc-onboarding-agent
+  last_span_seen: "2026-11-10T05:58:41Z"

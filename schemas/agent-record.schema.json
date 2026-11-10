@@ -1,0 +1,239 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/r0hitpilla/agentic-ai/schemas/agent-record.schema.json",
+  "title": "Agent deployment record",
+  "description": "One agent deployment CI in the agent CMDB, with its definition, governance record, identity and relationships. See docs/03-data-model.md.",
+  "type": "object",
+  "required": [
+    "agent_uid",
+    "definition",
+    "governance",
+    "deployment",
+    "identity",
+    "classification"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "agent_uid": {
+      "description": "Primary key. Must equal the gen_ai.agent.id the agent emits in telemetry.",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._:/-]{2,199}$"
+    },
+    "external_ids": {
+      "description": "Platform-native identifiers used for reconciliation (ARN, Entra object ID, K8s UID, image digest).",
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "definition": {
+      "description": "Layer 1: what type of agent this is.",
+      "type": "object",
+      "required": ["definition_id", "name", "purpose"],
+      "additionalProperties": false,
+      "properties": {
+        "definition_id": { "type": "string" },
+        "name": { "type": "string" },
+        "purpose": { "type": "string" },
+        "framework": { "type": "string" },
+        "framework_version": { "type": "string" },
+        "autonomy": {
+          "type": "string",
+          "enum": ["assistive", "human_in_the_loop", "human_on_the_loop", "autonomous"]
+        }
+      }
+    },
+    "governance": {
+      "description": "Layer 2: who owns it, whether it is approved, and its risk.",
+      "type": "object",
+      "required": ["record_id", "approval_status", "risk_tier", "owner", "business_flows"],
+      "additionalProperties": false,
+      "properties": {
+        "record_id": { "type": "string" },
+        "approval_status": {
+          "type": "string",
+          "enum": ["draft", "in_review", "approved", "rejected", "suspended", "retired"]
+        },
+        "risk_tier": { "type": "string", "enum": ["low", "medium", "high", "critical"] },
+        "regulatory_tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["rbi_free_ai", "rbi_mrm", "mas_airm", "eu_ai_act_high_risk", "dora_ict_asset"]
+          },
+          "uniqueItems": true
+        },
+        "owner": {
+          "type": "object",
+          "required": ["business_owner", "technical_owner"],
+          "additionalProperties": false,
+          "properties": {
+            "business_owner": { "type": "string" },
+            "technical_owner": { "type": "string" },
+            "team": { "type": "string" },
+            "cost_centre": { "type": "string" }
+          }
+        },
+        "business_flows": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        },
+        "approved_on": { "type": "string", "format": "date" },
+        "next_review": { "type": "string", "format": "date" }
+      }
+    },
+    "deployment": {
+      "description": "Layer 3: where this instance runs.",
+      "type": "object",
+      "required": ["platform", "hosting", "environment"],
+      "additionalProperties": false,
+      "properties": {
+        "platform": {
+          "type": "string",
+          "examples": ["aws-bedrock-agents", "aws-agentcore", "azure-foundry", "copilot-studio", "gcp-agent-runtime", "openshift", "kubernetes", "vm", "servicenow", "salesforce", "endpoint"]
+        },
+        "hosting": { "type": "string", "enum": ["platform_hosted", "self_hosted", "saas", "endpoint"] },
+        "environment": { "type": "string", "enum": ["dev", "test", "uat", "prod"] },
+        "region": { "type": "string" },
+        "version": { "type": "string" },
+        "image_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+        "code_repo": { "type": "string" },
+        "first_seen": { "type": "string", "format": "date-time" },
+        "last_seen": { "type": "string", "format": "date-time" }
+      }
+    },
+    "identity": {
+      "description": "The identity this deployment runs as (RUNS_AS). See docs/06-identity-onboarding.md.",
+      "type": "object",
+      "required": ["identity_id", "type", "credential_type"],
+      "additionalProperties": false,
+      "properties": {
+        "identity_id": { "type": "string" },
+        "type": {
+          "type": "string",
+          "enum": ["spiffe", "entra_agent_id", "agentcore_workload", "gcp_agent_identity", "okta_agent", "iam_role", "service_account", "api_key", "human_user"]
+        },
+        "issuer": { "type": "string" },
+        "credential_type": {
+          "type": "string",
+          "enum": ["short_lived_token", "x509_svid", "jwt_svid", "static_key", "password", "none"]
+        },
+        "shared_with_other_agents": { "type": "boolean", "default": false },
+        "delegation": {
+          "type": "string",
+          "enum": ["none", "token_exchange_on_behalf_of"],
+          "default": "none"
+        },
+        "last_access_review": { "type": "string", "format": "date" },
+        "last_used": { "type": "string", "format": "date-time" }
+      }
+    },
+    "classification": {
+      "description": "Computed by the reconciliation engine. See docs/07-reconciliation.md.",
+      "type": "object",
+      "required": ["managed_status", "identity_level", "confidence"],
+      "additionalProperties": false,
+      "properties": {
+        "managed_status": {
+          "type": "string",
+          "enum": ["managed", "unmanaged", "shadow", "dormant", "declared"]
+        },
+        "shadow_subtype": { "type": "string", "enum": ["ghost", "zombie"] },
+        "identity_level": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "identity_onboarded": {
+          "description": "True when identity_level is 2 or 3.",
+          "type": "boolean"
+        },
+        "on_gateway": { "type": "boolean" },
+        "confidence": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "evidence_planes": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["platform_api", "identity", "runtime", "code"] },
+          "uniqueItems": true
+        },
+        "drift_open": { "type": "boolean", "default": false }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "identity_level": { "minimum": 2 } } },
+          "then": { "properties": { "identity_onboarded": { "const": true } } },
+          "else": { "properties": { "identity_onboarded": { "const": false } } }
+        }
+      ]
+    },
+    "models": {
+      "description": "USES_MODEL edges.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["model_id", "provider"],
+        "additionalProperties": false,
+        "properties": {
+          "model_id": { "type": "string" },
+          "provider": { "type": "string" },
+          "version": { "type": "string" },
+          "hosting": { "type": "string", "enum": ["provider_api", "cloud_managed", "self_hosted"] },
+          "source": { "type": "string", "enum": ["declared", "observed", "both"] }
+        }
+      }
+    },
+    "tools": {
+      "description": "CALLS_TOOL edges.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["tool_id", "kind", "access"],
+        "additionalProperties": false,
+        "properties": {
+          "tool_id": { "type": "string" },
+          "kind": { "type": "string", "enum": ["mcp", "rest", "lambda", "connector", "a2a_peer"] },
+          "endpoint": { "type": "string" },
+          "access": { "type": "string", "enum": ["read", "write"] },
+          "source": { "type": "string", "enum": ["declared", "observed", "both"] }
+        }
+      }
+    },
+    "data_sources": {
+      "description": "READS / WRITES edges.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["source_id", "system", "classification", "access"],
+        "additionalProperties": false,
+        "properties": {
+          "source_id": { "type": "string" },
+          "system": { "type": "string" },
+          "classification": {
+            "type": "array",
+            "items": { "type": "string", "enum": ["public", "internal", "pii", "account", "card", "credit"] },
+            "uniqueItems": true
+          },
+          "access": { "type": "string", "enum": ["read", "write", "read_write"] }
+        }
+      }
+    },
+    "delegates_to": {
+      "description": "DELEGATES_TO edges: agent_uids of other agents this one calls.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "channels": {
+      "description": "TRIGGERED_BY edges: where requests come from.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "guardrails": {
+      "description": "PROTECTED_BY edges.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "telemetry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "emits_gen_ai_agent_id": { "type": "boolean" },
+        "otel_service_name": { "type": "string" },
+        "last_span_seen": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}
